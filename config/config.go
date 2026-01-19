@@ -24,6 +24,18 @@ type ServerConfig struct {
 	Listen string `mapstructure:"listen"`
 }
 
+// SQLiteConfig holds settings for the SQLite database file.
+type SQLiteConfig struct {
+	Path string `mapstructure:"path"`
+}
+
+// CommentsSiteConfig describes one logical site/blog for comments.
+type CommentsSiteConfig struct {
+	Title              string          `mapstructure:"title"`
+	CORSAllowedOrigins []string        `mapstructure:"cors_allowed_origins"`
+	Turnstile          TurnstileConfig `mapstructure:"turnstile"`
+}
+
 // SMTPConfig holds settings related to the sending mail server
 type SMTPConfig struct {
 	Host     string `mapstructure:"host"`
@@ -69,6 +81,9 @@ type AppConfig struct {
 	SMTP   SMTPConfig   `mapstructure:"smtp"`
 	//CORS   CORSConfig            `mapstructure:"cors"` // maybe later
 	Forms map[string]FormConfig `mapstructure:"forms"`
+
+	SQLite       SQLiteConfig                  `mapstructure:"sqlite"`
+	CommentSites map[string]CommentsSiteConfig `mapstructure:"comment_sites"`
 
 	// Logging config kept for future extensions, currently unused.
 	// LogLevel  string `mapstructure:"log_level"`
@@ -160,6 +175,7 @@ func readAndSetConfig() error {
 			// Final fallback: use environment variables only.
 			log.Printf("No .env file found either. Using environment variables only. (%v)", err2)
 		}
+
 	}
 
 	// Unmarshal configuration into our AppConfig struct.
@@ -174,7 +190,12 @@ func readAndSetConfig() error {
 
 	log.Println("server.listen:", Cfg.Server.Listen)
 
-	// If you later enable logging config, you can log or validate it here as well.
+	if Cfg.SQLite.Path == "" {
+		return exitOnErr(errors.New("sqlite.path must be set in config or environment"))
+	}
+	log.Println("sqlite.path:", Cfg.SQLite.Path)
+
+	// maybe later enable logging config
 
 	return nil
 }
