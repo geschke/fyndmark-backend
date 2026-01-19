@@ -6,7 +6,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/geschke/fyntral/pkg/server"
+	"github.com/geschke/fyndmark/pkg/server"
 	"github.com/spf13/cobra"
 )
 
@@ -18,9 +18,9 @@ func init() {
 // serveCmd represents the serve command
 var serveCmd = &cobra.Command{
 	Use:   "serve",
-	Short: "Start the Fyntral HTTP server.",
+	Short: "Start the fyndmark HTTP server.",
 
-	Long: `Starts the Fyntral form-to-email HTTP server using the
+	Long: `Starts the fyndmark form-to-email HTTP server using the
 configuration provided via config file, environment variables,
 or CLI flags.
 

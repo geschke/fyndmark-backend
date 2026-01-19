@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/geschke/fyntral/config"
-	"github.com/geschke/fyntral/pkg/cors"
-	"github.com/geschke/fyntral/pkg/turnstile"
+	"github.com/geschke/fyndmark/config"
+	"github.com/geschke/fyndmark/pkg/cors"
+	"github.com/geschke/fyndmark/pkg/turnstile"
 	"github.com/gin-gonic/gin"
 	mail "github.com/wneessen/go-mail"
 )
@@ -129,7 +129,7 @@ func buildMailContent(formID string, formCfg config.FormConfig, values map[strin
 	// Subject
 	subject := formCfg.SubjectPrefix
 	if subject == "" {
-		subject = "[Fyntral feedback]"
+		subject = "[fyndmark feedback]"
 	}
 	if formCfg.Title != "" {
 		subject = subject + " " + formCfg.Title

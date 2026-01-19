@@ -1,8 +1,8 @@
 services:
-  fyntral:
-    image: fyntral:latest       
+  fyndmark:
+    image: fyndmark:latest       
    
-    container_name: fyntral
+    container_name: fyndmark
     restart: unless-stopped
 
     # Map host port 8080 → container 8080
@@ -22,5 +22,5 @@ services:
       # SMTP_TLS_POLICY: "none"
       TZ: "Europe/Berlin"
 
-    # Run fyntral with an explicit config path
+    # Run fyndmark with an explicit config path
     command: ["--config", "/config/config.yaml"]

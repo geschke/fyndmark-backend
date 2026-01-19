@@ -8,7 +8,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/geschke/fyntral/config"
+	"github.com/geschke/fyndmark/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -17,9 +17,9 @@ import (
 var (
 	cfgFile string
 	rootCmd = &cobra.Command{
-		Use:   "fyntral",
+		Use:   "fyndmark",
 		Short: "Minimal form-to-email relay server with per-form config and optional Turnstile validation.",
-		Long: `Fyntral is a lightweight form-to-email relay service.
+		Long: `fyndmark is a lightweight form-to-email relay service.
 It accepts form submissions, validates fields, optionally verifies
 Cloudflare Turnstile tokens, and sends the collected data via SMTP.
 
@@ -28,9 +28,9 @@ environment variables, or CLI flags. Each form can define its own fields,
 recipients, CORS rules, and Turnstile settings.
 
 Typical usage:
-  fyntral serve --config /path/to/config.yaml
+  fyndmark serve --config /path/to/config.yaml
 
-Fyntral is designed for self-hosted environments where a small,
+fyndmark is designed for self-hosted environments where a small,
 simple mail handler is preferred over cloud-based solutions.`,
 
 		// Uncomment the following line if your bare application

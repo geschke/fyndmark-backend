@@ -17,7 +17,7 @@ COPY . .
 ARG TARGETOS
 ARG TARGETARCH
 
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/fyntral .
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/fyndmark .
 
 # ---------- Runtime stage ----------
 FROM alpine:3.23
@@ -26,12 +26,12 @@ FROM alpine:3.23
 RUN apk add --no-cache ca-certificates
 
 # Create non-root user
-RUN addgroup -S fyntral && adduser -S fyntral -G fyntral
+RUN addgroup -S fyndmark && adduser -S fyndmark -G fyndmark
 
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /bin/fyntral /bin/fyntral
+COPY --from=builder /bin/fyndmark /bin/fyndmark
 
 # Optional: directory for config files (volume mount or baked-in config)
 # You already search ".", "./config" and "/config" in your code,
@@ -40,13 +40,13 @@ RUN mkdir -p /config
 VOLUME ["/config"]
 
 # Switch to non-root user
-USER fyntral
+USER fyndmark
 
-# Expose default HTTP port used by Fyntral (server.listen)
+# Expose default HTTP port used by fyndmark (server.listen)
 EXPOSE 8080
 
 # Default command
 # You can override config path and flags via environment or args:
-#   docker run ... fyntral --config /config/config.yaml
-ENTRYPOINT ["/bin/fyntral"]
+#   docker run ... fyndmark --config /config/config.yaml
+ENTRYPOINT ["/bin/fyndmark"]
 CMD ["serve"]

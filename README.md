@@ -1,12 +1,13 @@
-# **Fyntral**
+# Fyndmark Backend
 
-Fyntral is a small, self-hosted email relay for web forms.
-It accepts form submissions, validates fields, optionally verifies Cloudflare Turnstile tokens, and sends the collected data via SMTP.
-It was originally built to replace a simple AWS Lambda mail function — AWS was unnecessary overhead for this specific task.
+Fyndmark is a lightweight comment backend for Hugo, built with Go (gin-gonic).  
+It receives comment submissions via HTTP and stores them for further processing (e.g. moderation and static regeneration).
 
-Fyntral is intentionally minimal but can be extended if needed.
+> Status: Work in progress / early prototype.
 
 ---
+
+...change this...
 
 ## **Features**
 
@@ -22,28 +23,28 @@ Fyntral is intentionally minimal but can be extended if needed.
 
 ## Building from source
 
-You can build Fyntral locally using the standard Go toolchain.
+You can build fyndmark locally using the standard Go toolchain.
 Go 1.21+ is recommended.
 
 ### Clone and build
 
 ```bash
-git clone https://github.com/geschke/fyntral.git
-cd fyntral
-go build -o fyntral .
+git clone https://github.com/geschke/fyndmark.git
+cd fyndmark
+go build -o fyndmark .
 ```
 
-This produces a local binary named `fyntral`.
+This produces a local binary named `fyndmark`.
 
 ### Install globally
 
 If you prefer installing it into your `$GOPATH/bin` (or Go's module-aware bin directory):
 
 ```bash
-go install github.com/geschke/fyntral@latest
+go install github.com/geschke/fyndmark@latest
 ```
 
-The binary `fyntral` will be placed in:
+The binary `fyndmark` will be placed in:
 
 ```
 $GOPATH/bin
@@ -63,7 +64,7 @@ Make sure that directory is available in your `$PATH`.
 
 ## **Configuration**
 
-Fyntral loads configuration from:
+fyndmark loads configuration from:
 
 1. `--config <file>`
 2. Environment variables
@@ -156,7 +157,7 @@ FORMS_EXAMPLE_FORM_CORS_ALLOWED_ORIGINS="https://one,https://two"
 docker run \
   -p 8080:8080 \
   -v $(pwd)/config:/config \
-  ghcr.io/geschke/fyntral:latest \
+  ghcr.io/geschke/fyndmark:latest \
   serve --config /config/config.yaml
 ```
 
@@ -166,9 +167,9 @@ docker run \
 
 ```yaml
 services:
-  fyntral:
-    image: ghcr.io/geschke/fyntral:latest
-    container_name: fyntral
+  fyndmark:
+    image: ghcr.io/geschke/fyndmark:latest
+    container_name: fyndmark
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -181,7 +182,7 @@ services:
 
 ## **Purpose**
 
-Fyntral exists to provide:
+fyndmark exists to provide:
 
 * a simple, fully self-hosted alternative to cloud-based mail handling
 * no external dependencies
@@ -194,16 +195,16 @@ It is built for personal use but can be used anywhere a lightweight form-to-mail
 
 ## Running behind Traefik (reverse proxy)
 
-Fyntral is a good fit for running behind a reverse proxy such as Traefik.
+fyndmark is a good fit for running behind a reverse proxy such as Traefik.
 In this setup the container only listens on an internal port (e.g. `8080`), and Traefik terminates TLS and routes external requests (e.g. `https://func.example.org`) to the service.
 
 A minimal example with Traefik labels might look like this:
 
 ```yaml
 services:
-  fyntral:
-    image: ghcr.io/geschke/fyntral:latest
-    container_name: fyntral
+  fyndmark:
+    image: ghcr.io/geschke/fyndmark:latest
+    container_name: fyndmark
     restart: unless-stopped
     volumes:
       - ./config.yaml:/config/config.yaml:ro
@@ -216,22 +217,22 @@ services:
       - "traefik.docker.network=traefik-public"
 
       # HTTP → redirect to HTTPS
-      - "traefik.http.routers.fyntral.rule=Host(`func.example.org`)"
-      - "traefik.http.routers.fyntral.entrypoints=http"
-      - "traefik.http.middlewares.fyntral-https-redirect.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.fyntral-https-redirect.redirectscheme.permanent=true"
-      - "traefik.http.routers.fyntral.middlewares=fyntral-https-redirect"
+      - "traefik.http.routers.fyndmark.rule=Host(`func.example.org`)"
+      - "traefik.http.routers.fyndmark.entrypoints=http"
+      - "traefik.http.middlewares.fyndmark-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.fyndmark-https-redirect.redirectscheme.permanent=true"
+      - "traefik.http.routers.fyndmark.middlewares=fyndmark-https-redirect"
 
       # HTTPS router
-      - "traefik.http.routers.fyntral-secured.rule=Host(`func.example.org`)"
-      - "traefik.http.routers.fyntral-secured.entrypoints=https"
-      - "traefik.http.routers.fyntral-secured.tls.certresolver=le-tls"
+      - "traefik.http.routers.fyndmark-secured.rule=Host(`func.example.org`)"
+      - "traefik.http.routers.fyndmark-secured.entrypoints=https"
+      - "traefik.http.routers.fyndmark-secured.tls.certresolver=le-tls"
 
-      # Forward to the internal Fyntral port
-      - "traefik.http.services.fyntral-secured.loadbalancer.server.port=8080"
+      # Forward to the internal fyndmark port
+      - "traefik.http.services.fyndmark-secured.loadbalancer.server.port=8080"
 
       # Optional: security / compression middlewares defined in Traefik file providers
-      - "traefik.http.routers.fyntral-secured.middlewares=secHeaders@file,def-compress@file"
+      - "traefik.http.routers.fyndmark-secured.middlewares=secHeaders@file,def-compress@file"
 
 networks:
   traefik-public:
@@ -240,6 +241,6 @@ networks:
 
 In this configuration:
 
-* Fyntral listens only on `8080` inside the Docker network.
+* fyndmark listens only on `8080` inside the Docker network.
 * Traefik handles HTTP/HTTPS entrypoints and TLS certificates.
-* The host `func.example.org` is routed to the Fyntral container without exposing any additional ports on the host.
+* The host `func.example.org` is routed to the fyndmark container without exposing any additional ports on the host.

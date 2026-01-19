@@ -1,8 +1,8 @@
 package server
 
 import (
-	"github.com/geschke/fyntral/config"
-	"github.com/geschke/fyntral/pkg/controller"
+	"github.com/geschke/fyndmark/config"
+	"github.com/geschke/fyndmark/pkg/controller"
 
 	"github.com/gin-gonic/gin"
 )

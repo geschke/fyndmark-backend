@@ -1,9 +1,9 @@
 /*
-Copyright © 2025 Ralf Geschke <ralf@kuerbis.org>
+Copyright © 2026 Ralf Geschke <ralf@kuerbis.org>
 */
 package main
 
-import "github.com/geschke/fyntral/cmd"
+import "github.com/geschke/fyndmark/cmd"
 
 func main() {
 	cmd.Execute()
