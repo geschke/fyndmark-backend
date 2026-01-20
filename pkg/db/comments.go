@@ -16,6 +16,7 @@ type Comment struct {
 	ParentID  sql.NullString
 	Status    string
 	Author    string
+	Email     string
 	Body      string
 	CreatedAt int64
 }
@@ -37,13 +38,71 @@ func (d *DB) InsertComment(ctx context.Context, c Comment) error {
 
 	_, err := d.SQL.ExecContext(ctx, `
 INSERT INTO comments (
-  id, site_id, entry_id, post_path, parent_id, status, author, body, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-`, c.ID, c.SiteID, c.EntryID, c.PostPath, c.ParentID, c.Status, c.Author, c.Body, c.CreatedAt)
+  id, site_id, entry_id, post_path, parent_id, status, author, email, body, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+`, c.ID, c.SiteID, c.EntryID, c.PostPath, c.ParentID, c.Status, c.Author, c.Email, c.Body, c.CreatedAt)
 
 	if err != nil {
 		return fmt.Errorf("insert comment: %w", err)
 	}
 
 	return nil
+}
+
+// ApproveComment sets a pending comment to approved (idempotent-ish).
+// Returns true if a row was updated, false if nothing changed (not found or already decided).
+func (d *DB) ApproveComment(ctx context.Context, siteID, commentID string) (bool, error) {
+	if d == nil || d.SQL == nil {
+		return false, fmt.Errorf("db not initialized")
+	}
+
+	now := time.Now().Unix()
+
+	res, err := d.SQL.ExecContext(ctx, `
+UPDATE comments
+   SET status = 'approved',
+       approved_at = ?,
+       rejected_at = NULL
+ WHERE site_id = ?
+   AND id = ?
+   AND status = 'pending';
+`, now, siteID, commentID)
+	if err != nil {
+		return false, fmt.Errorf("approve comment: %w", err)
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("approve comment rows affected: %w", err)
+	}
+	return affected > 0, nil
+}
+
+// RejectComment sets a pending comment to rejected (idempotent-ish).
+// Returns true if a row was updated, false if nothing changed (not found or already decided).
+func (d *DB) RejectComment(ctx context.Context, siteID, commentID string) (bool, error) {
+	if d == nil || d.SQL == nil {
+		return false, fmt.Errorf("db not initialized")
+	}
+
+	now := time.Now().Unix()
+
+	res, err := d.SQL.ExecContext(ctx, `
+UPDATE comments
+   SET status = 'rejected',
+       rejected_at = ?,
+       approved_at = NULL
+ WHERE site_id = ?
+   AND id = ?
+   AND status = 'pending';
+`, now, siteID, commentID)
+	if err != nil {
+		return false, fmt.Errorf("reject comment: %w", err)
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("reject comment rows affected: %w", err)
+	}
+	return affected > 0, nil
 }

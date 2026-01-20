@@ -8,9 +8,9 @@ import (
 
 	"github.com/geschke/fyndmark/config"
 	"github.com/geschke/fyndmark/pkg/cors"
+	"github.com/geschke/fyndmark/pkg/mailer"
 	"github.com/geschke/fyndmark/pkg/turnstile"
 	"github.com/gin-gonic/gin"
-	mail "github.com/wneessen/go-mail"
 )
 
 // FeedbackController
@@ -80,7 +80,7 @@ func (ct FeedbackController) PostMail(c *gin.Context) {
 
 	subject, body := buildMailContent(formID, formCfg, values)
 
-	if err := sendFormMail(formCfg, subject, body); err != nil {
+	if err := mailer.SendTextMail(formCfg.Recipients, subject, body); err != nil {
 		log.Printf("Error sending mail for form %s: %v", formID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -154,70 +154,4 @@ func buildMailContent(formID string, formCfg config.FormConfig, values map[strin
 
 	body := sb.String()
 	return subject, body
-}
-
-// sendFormMail sends the mail using the global SMTP config and the given form config.
-func sendFormMail(formCfg config.FormConfig, subject, body string) error {
-	smtpCfg := config.Cfg.SMTP
-
-	var opts []mail.Option
-
-	// Optional explicit port
-	if smtpCfg.Port > 0 {
-		opts = append(opts, mail.WithPort(smtpCfg.Port))
-	}
-
-	// TLS policy
-	switch strings.ToLower(strings.TrimSpace(smtpCfg.TLSPolicy)) {
-	case "none":
-		// Explicitly disable TLS / STARTTLS
-		opts = append(opts, mail.WithTLSPortPolicy(mail.NoTLS))
-	case "opportunistic":
-		// Try TLS (STARTTLS) if supported, else fall back to plain SMTP
-		opts = append(opts, mail.WithTLSPortPolicy(mail.TLSOpportunistic))
-	case "", "mandatory":
-		// Default: TLS required (STARTTLS). Fail if server does not support TLS.
-		opts = append(opts, mail.WithTLSPortPolicy(mail.TLSMandatory))
-	default:
-		// Unknown value → be conservative and require TLS
-		opts = append(opts, mail.WithTLSPortPolicy(mail.TLSMandatory))
-	}
-
-	// Create client
-	client, err := mail.NewClient(smtpCfg.Host, opts...)
-	if err != nil {
-		return fmt.Errorf("failed to create mail client: %w", err)
-	}
-
-	// Optional authentication
-	if smtpCfg.Username != "" && smtpCfg.Password != "" {
-		client.SetSMTPAuth(mail.SMTPAuthPlain)
-		client.SetUsername(smtpCfg.Username)
-		client.SetPassword(smtpCfg.Password)
-	}
-
-	// Build message
-	msg := mail.NewMsg()
-	if err := msg.From(smtpCfg.From); err != nil {
-		return fmt.Errorf("invalid FROM address: %w", err)
-	}
-
-	if len(formCfg.Recipients) == 0 {
-		return fmt.Errorf("no recipients configured for this form")
-	}
-	for _, rcpt := range formCfg.Recipients {
-		if err := msg.To(rcpt); err != nil {
-			return fmt.Errorf("invalid recipient %q: %w", rcpt, err)
-		}
-	}
-
-	msg.Subject(subject)
-	msg.SetBodyString(mail.TypeTextPlain, body)
-
-	// Send mail
-	if err := client.DialAndSend(msg); err != nil {
-		return fmt.Errorf("failed to send mail: %w", err)
-	}
-
-	return nil
 }

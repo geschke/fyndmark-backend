@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS comments (
   parent_id     TEXT,
   status        TEXT NOT NULL,
   author        TEXT NOT NULL,
+  email         TEXT NOT NULL,
   body          TEXT NOT NULL,
   created_at    INTEGER NOT NULL,
   approved_at   INTEGER,
@@ -78,6 +79,7 @@ CREATE TABLE IF NOT EXISTS comments (
 
   FOREIGN KEY(parent_id) REFERENCES comments(id) ON DELETE CASCADE
 );
+
 `,
 		`CREATE INDEX IF NOT EXISTS idx_comments_site_status_created ON comments(site_id, status, created_at);`,
 		`CREATE INDEX IF NOT EXISTS idx_comments_site_post_created   ON comments(site_id, post_path, created_at);`,

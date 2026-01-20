@@ -34,6 +34,9 @@ type CommentsSiteConfig struct {
 	Title              string          `mapstructure:"title"`
 	CORSAllowedOrigins []string        `mapstructure:"cors_allowed_origins"`
 	Turnstile          TurnstileConfig `mapstructure:"turnstile"`
+
+	AdminRecipients []string `mapstructure:"admin_recipients"`
+	TokenSecret     string   `mapstructure:"token_secret"`
 }
 
 // SMTPConfig holds settings related to the sending mail server
@@ -194,6 +197,15 @@ func readAndSetConfig() error {
 		return exitOnErr(errors.New("sqlite.path must be set in config or environment"))
 	}
 	log.Println("sqlite.path:", Cfg.SQLite.Path)
+
+	for siteID, siteCfg := range Cfg.CommentSites {
+		if len(siteCfg.AdminRecipients) == 0 {
+			return exitOnErr(fmt.Errorf("comment_sites.%s.admin_recipients must be set", siteID))
+		}
+		if strings.TrimSpace(siteCfg.TokenSecret) == "" {
+			return exitOnErr(fmt.Errorf("comment_sites.%s.token_secret must be set", siteID))
+		}
+	}
 
 	// maybe later enable logging config
 

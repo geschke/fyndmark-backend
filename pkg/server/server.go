@@ -32,6 +32,7 @@ func Start() error {
 	router.GET("/", getMain)
 	router.POST("/api/feedbackmail/:formid", feedback.PostMail)
 	router.POST("/api/comments/:siteid/", comments.PostComment)
+	router.GET("/api/comments/:siteid/decision", comments.GetDecision)
 	// Basic health check
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
