@@ -231,6 +231,24 @@ func (ct CommentsController) PostComment(c *gin.Context) {
 	})
 }
 
+// OPTIONS /api/comments/:siteid/
+func (ct CommentsController) OptionsComment(c *gin.Context) {
+	siteID := c.Param("siteid")
+
+	siteCfg, ok := config.Cfg.CommentSites[siteID]
+	if !ok {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	// Apply CORS for this site and finish preflight
+	if !cors.ApplyCORS(c, siteCfg.CORSAllowedOrigins) {
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
 func signToken(payload, secret string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(payload))
