@@ -35,8 +35,17 @@ type CommentsSiteConfig struct {
 	CORSAllowedOrigins []string        `mapstructure:"cors_allowed_origins"`
 	Turnstile          TurnstileConfig `mapstructure:"turnstile"`
 
-	AdminRecipients []string `mapstructure:"admin_recipients"`
-	TokenSecret     string   `mapstructure:"token_secret"`
+	AdminRecipients []string  `mapstructure:"admin_recipients"`
+	TokenSecret     string    `mapstructure:"token_secret"`
+	Git             GitConfig `mapstructure:"git"`
+}
+
+type GitConfig struct {
+	RepoURL     string `mapstructure:"repo_url"`
+	Branch      string `mapstructure:"branch"`
+	AccessToken string `mapstructure:"access_token"`
+	CloneDir    string `mapstructure:"clone_dir"`
+	Depth       int    `mapstructure:"depth"`
 }
 
 // SMTPConfig holds settings related to the sending mail server
