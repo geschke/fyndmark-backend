@@ -16,9 +16,11 @@ type CloneOptions struct {
 	TargetDir   string
 	Depth       int
 	Timeout     time.Duration
+
+	RecurseSubmodules bool
 }
 
-// Clone runs: git clone [--depth=N] [--branch BRANCH] <url> <targetDir>
+// Clone runs: git clone [--depth=N] [--branch BRANCH] [--recurse-submodules] <url> <targetDir>
 // It supports HTTPS token auth by embedding the token into the URL.
 // Important: do not log args, because the URL may contain the token.
 func Clone(ctx context.Context, opts CloneOptions) error {
@@ -38,12 +40,18 @@ func Clone(ctx context.Context, opts CloneOptions) error {
 	}
 
 	args := []string{"clone"}
+
+	if opts.RecurseSubmodules {
+		args = append(args, "--recurse-submodules")
+	}
+
 	if opts.Depth > 0 {
 		args = append(args, fmt.Sprintf("--depth=%d", opts.Depth))
 	}
 	if strings.TrimSpace(opts.Branch) != "" {
 		args = append(args, "--branch", opts.Branch)
 	}
+
 	args = append(args, cloneURL, opts.TargetDir)
 
 	runCtx, cancel := context.WithTimeout(ctx, opts.Timeout)

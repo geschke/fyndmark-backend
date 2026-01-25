@@ -46,6 +46,34 @@ type GitConfig struct {
 	AccessToken string `mapstructure:"access_token"`
 	CloneDir    string `mapstructure:"clone_dir"`
 	Depth       int    `mapstructure:"depth"`
+
+	// Optional: initialize/update submodules during clone
+	RecurseSubmodules bool `mapstructure:"recurse_submodules"`
+
+	// Optional: additional themes/components to ensure exist under the cloned repo
+	Themes []GitThemeConfig `mapstructure:"themes"`
+}
+
+// GitThemeConfig describes an additional theme/component repository that should be
+// cloned into the website working copy (typically under themes/).
+type GitThemeConfig struct {
+	// Logical name (only for readability/logging)
+	Name string `mapstructure:"name"`
+
+	// Repo URL of the theme/component (https://... or git@...).
+	RepoURL string `mapstructure:"repo_url"`
+
+	// Optional branch (if empty, default branch is used)
+	Branch string `mapstructure:"branch"`
+
+	// Target path within the cloned website repo, e.g. "themes/hugo-felmdrav"
+	TargetPath string `mapstructure:"target_path"`
+
+	// Optional token for private theme repos (leave empty for public repos)
+	AccessToken string `mapstructure:"access_token"`
+
+	// Optional shallow clone depth for this theme repo (0 = full clone)
+	Depth int `mapstructure:"depth"`
 }
 
 // SMTPConfig holds settings related to the sending mail server

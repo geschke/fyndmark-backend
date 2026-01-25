@@ -33,9 +33,8 @@ func CheckoutWithContext(ctx context.Context, siteID string) error {
 		return fmt.Errorf("comment_sites.%s.git.repo_url must be set", siteID)
 	}
 
-	// Determine target directory (temp if empty).
+	// Determine target directory.
 	targetDir := strings.TrimSpace(gc.CloneDir)
-
 	if targetDir == "" {
 		// Default working directory (relative to current working dir)
 		targetDir = filepath.Join(".", "website", siteID)
@@ -51,12 +50,24 @@ func CheckoutWithContext(ctx context.Context, siteID string) error {
 
 	fmt.Printf("Cloning repo into: %s\n", targetDir)
 
-	return gitcli.Clone(ctx, gitcli.CloneOptions{
-		RepoURL:     repoURL,
-		Branch:      strings.TrimSpace(gc.Branch),
-		AccessToken: strings.TrimSpace(gc.AccessToken),
-		TargetDir:   targetDir,
-		Depth:       gc.Depth,
-		Timeout:     2 * time.Minute,
-	})
+	// Clone website repo (optionally with submodules).
+	if err := gitcli.Clone(ctx, gitcli.CloneOptions{
+		RepoURL:           repoURL,
+		Branch:            strings.TrimSpace(gc.Branch),
+		AccessToken:       strings.TrimSpace(gc.AccessToken),
+		TargetDir:         targetDir,
+		Depth:             gc.Depth,
+		Timeout:           2 * time.Minute,
+		RecurseSubmodules: gc.RecurseSubmodules,
+	}); err != nil {
+		return err
+	}
+
+	// Ensure additional themes/components (optional).
+	if err := ensureThemes(ctx, siteID, targetDir); err != nil {
+		return err
+	}
+
+	fmt.Printf("Checkout completed. Workdir: %s\n", targetDir)
+	return nil
 }
