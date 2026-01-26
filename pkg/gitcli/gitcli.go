@@ -65,6 +65,82 @@ func Clone(ctx context.Context, opts CloneOptions) error {
 	return nil
 }
 
+// StatusPorcelain returns the raw output of: git status --porcelain
+func StatusPorcelain(ctx context.Context, repoDir string, timeout time.Duration) (string, error) {
+	if strings.TrimSpace(repoDir) == "" {
+		return "", fmt.Errorf("repo dir is empty")
+	}
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	out, err := runGit(runCtx, repoDir, []string{"status", "--porcelain"})
+	if err != nil {
+		return "", fmt.Errorf("git status failed: %w", err)
+	}
+	return out, nil
+}
+
+// AddAll stages all changes including new files: git add -A
+func AddAll(ctx context.Context, repoDir string, timeout time.Duration) error {
+	if strings.TrimSpace(repoDir) == "" {
+		return fmt.Errorf("repo dir is empty")
+	}
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	_, err := runGit(runCtx, repoDir, []string{"add", "-A"})
+	if err != nil {
+		return fmt.Errorf("git add -A failed: %w", err)
+	}
+	return nil
+}
+
+// Commit creates a commit with the given message: git commit -m "<msg>"
+func Commit(ctx context.Context, repoDir string, message string, timeout time.Duration) error {
+	if strings.TrimSpace(repoDir) == "" {
+		return fmt.Errorf("repo dir is empty")
+	}
+	message = strings.TrimSpace(message)
+	if message == "" {
+		return fmt.Errorf("commit message is empty")
+	}
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	_, err := runGit(runCtx, repoDir, []string{"commit", "-m", message})
+	if err != nil {
+		return fmt.Errorf("git commit failed: %w", err)
+	}
+	return nil
+}
+
+// Push pushes to the default configured remote/branch: git push
+func Push(ctx context.Context, repoDir string, timeout time.Duration) error {
+	if strings.TrimSpace(repoDir) == "" {
+		return fmt.Errorf("repo dir is empty")
+	}
+	if timeout <= 0 {
+		timeout = 2 * time.Minute
+	}
+	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	_, err := runGit(runCtx, repoDir, []string{"push"})
+	if err != nil {
+		return fmt.Errorf("git push failed: %w", err)
+	}
+	return nil
+}
+
 func runGit(ctx context.Context, dir string, args []string) (string, error) {
 	var out bytes.Buffer
 

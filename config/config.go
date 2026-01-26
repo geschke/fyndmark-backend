@@ -29,15 +29,22 @@ type SQLiteConfig struct {
 	Path string `mapstructure:"path"`
 }
 
+// HugoConfig controls whether Hugo should be executed by fyndmark (optional).
+type HugoConfig struct {
+	// Enabled controls whether the backend should run Hugo after generating markdown files.
+	Enabled bool `mapstructure:"enabled"`
+}
+
 // CommentsSiteConfig describes one logical site/blog for comments.
 type CommentsSiteConfig struct {
 	Title              string          `mapstructure:"title"`
 	CORSAllowedOrigins []string        `mapstructure:"cors_allowed_origins"`
 	Turnstile          TurnstileConfig `mapstructure:"turnstile"`
 
-	AdminRecipients []string  `mapstructure:"admin_recipients"`
-	TokenSecret     string    `mapstructure:"token_secret"`
-	Git             GitConfig `mapstructure:"git"`
+	AdminRecipients []string   `mapstructure:"admin_recipients"`
+	TokenSecret     string     `mapstructure:"token_secret"`
+	Git             GitConfig  `mapstructure:"git"`
+	Hugo            HugoConfig `mapstructure:"hugo"`
 }
 
 type GitConfig struct {
