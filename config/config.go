@@ -45,6 +45,7 @@ type CommentsSiteConfig struct {
 	TokenSecret     string     `mapstructure:"token_secret"`
 	Git             GitConfig  `mapstructure:"git"`
 	Hugo            HugoConfig `mapstructure:"hugo"`
+	Timezone        string     `mapstructure:"timezone"`
 }
 
 type GitConfig struct {

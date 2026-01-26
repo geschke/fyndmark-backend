@@ -106,3 +106,54 @@ UPDATE comments
 	}
 	return affected > 0, nil
 }
+
+// ListApprovedComments returns all approved comments for a site, ordered deterministically.
+// Ordering: post_path ASC, created_at ASC, id ASC.
+func (d *DB) ListApprovedComments(ctx context.Context, siteID string) ([]Comment, error) {
+	if d == nil || d.SQL == nil {
+		return nil, fmt.Errorf("db not initialized")
+	}
+
+	siteID = strings.TrimSpace(siteID)
+	if siteID == "" {
+		return nil, fmt.Errorf("siteID is required")
+	}
+
+	rows, err := d.SQL.QueryContext(ctx, `
+SELECT id, site_id, entry_id, post_path, parent_id, status, author, email, body, created_at
+  FROM comments
+ WHERE site_id = ?
+   AND status = 'approved'
+ ORDER BY post_path ASC, created_at ASC, id ASC;
+`, siteID)
+	if err != nil {
+		return nil, fmt.Errorf("list approved comments: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []Comment
+	for rows.Next() {
+		var c Comment
+		if err := rows.Scan(
+			&c.ID,
+			&c.SiteID,
+			&c.EntryID,
+			&c.PostPath,
+			&c.ParentID,
+			&c.Status,
+			&c.Author,
+			&c.Email,
+			&c.Body,
+			&c.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan approved comment: %w", err)
+		}
+		out = append(out, c)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate approved comments: %w", err)
+	}
+
+	return out, nil
+}
