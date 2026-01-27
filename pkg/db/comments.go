@@ -17,8 +17,24 @@ type Comment struct {
 	Status    string
 	Author    string
 	Email     string
+	AuthorUrl sql.NullString
 	Body      string
 	CreatedAt int64
+}
+
+func (c Comment) AuthorURLString() string {
+	if c.AuthorUrl.Valid {
+		return c.AuthorUrl.String
+	}
+	return ""
+}
+
+func normalizeNullString(ns sql.NullString) sql.NullString {
+	s := strings.TrimSpace(ns.String)
+	if s == "" {
+		return sql.NullString{String: "", Valid: false}
+	}
+	return sql.NullString{String: s, Valid: true}
 }
 
 func (d *DB) InsertComment(ctx context.Context, c Comment) error {
@@ -29,6 +45,8 @@ func (d *DB) InsertComment(ctx context.Context, c Comment) error {
 	c.SiteID = strings.TrimSpace(c.SiteID)
 	c.PostPath = strings.TrimSpace(c.PostPath)
 	c.Author = strings.TrimSpace(c.Author)
+	c.AuthorUrl = normalizeNullString(c.AuthorUrl)
+
 	c.Body = strings.TrimSpace(c.Body)
 	c.Status = strings.TrimSpace(c.Status)
 
@@ -38,9 +56,9 @@ func (d *DB) InsertComment(ctx context.Context, c Comment) error {
 
 	_, err := d.SQL.ExecContext(ctx, `
 INSERT INTO comments (
-  id, site_id, entry_id, post_path, parent_id, status, author, email, body, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-`, c.ID, c.SiteID, c.EntryID, c.PostPath, c.ParentID, c.Status, c.Author, c.Email, c.Body, c.CreatedAt)
+  id, site_id, entry_id, post_path, parent_id, status, author, email, author_url, body, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+`, c.ID, c.SiteID, c.EntryID, c.PostPath, c.ParentID, c.Status, c.Author, c.Email, c.AuthorUrl, c.Body, c.CreatedAt)
 
 	if err != nil {
 		return fmt.Errorf("insert comment: %w", err)
@@ -120,7 +138,7 @@ func (d *DB) ListApprovedComments(ctx context.Context, siteID string) ([]Comment
 	}
 
 	rows, err := d.SQL.QueryContext(ctx, `
-SELECT id, site_id, entry_id, post_path, parent_id, status, author, email, body, created_at
+SELECT id, site_id, entry_id, post_path, parent_id, status, author, email, author_url, body, created_at
   FROM comments
  WHERE site_id = ?
    AND status = 'approved'
@@ -143,6 +161,7 @@ SELECT id, site_id, entry_id, post_path, parent_id, status, author, email, body,
 			&c.Status,
 			&c.Author,
 			&c.Email,
+			&c.AuthorUrl,
 			&c.Body,
 			&c.CreatedAt,
 		); err != nil {

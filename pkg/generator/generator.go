@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
+
+	"sort"
 	"time"
 
 	"github.com/geschke/fyndmark/config"
 	dbpkg "github.com/geschke/fyndmark/pkg/db"
+	"github.com/geschke/fyndmark/pkg/sanitize"
 )
 
 // Generate is a small wrapper around GenerateWithContext.
@@ -136,6 +138,7 @@ func GenerateWithContext(ctx context.Context, siteID string) error {
 				c.ID,
 				tLocal,
 				c.Author,
+				c.AuthorURLString(),
 				replyTo,
 				"approved",
 				c.Body,
@@ -178,23 +181,23 @@ func dirExists(path string) bool {
 
 // renderCommentMarkdown matches your established front matter structure.
 // Note: author_url is currently empty as your DB doesn't contain a URL field.
-func renderCommentMarkdown(commentID string, date time.Time, authorName, replyTo, status, body string) string {
+func renderCommentMarkdown(commentID string, date time.Time, authorName, authorUrl, replyTo, status, body string) string {
 	authorName = strings.TrimSpace(authorName)
+	authorUrl = strings.TrimSpace(authorUrl)
 	replyTo = strings.TrimSpace(replyTo)
 	status = strings.TrimSpace(status)
 
 	// Normalize newlines and ensure trailing newline.
-	body = strings.ReplaceAll(body, "\r\n", "\n")
-	body = strings.TrimRight(body, "\n") + "\n"
+	body = sanitize.SanitizeCommentBody(body)
 
 	return fmt.Sprintf(`---
 comment_id: %q
 date: %s
 author_name: %q
-author_url: ""
+author_url: %q
 status: %q
 reply_to: %q
 ---
 
-%s`, commentID, date.Format(time.RFC3339), authorName, status, replyTo, body)
+%s`, commentID, date.Format(time.RFC3339), authorName, authorUrl, status, replyTo, body)
 }

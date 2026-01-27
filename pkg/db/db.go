@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS comments (
   status        TEXT NOT NULL,
   author        TEXT NOT NULL,
   email         TEXT NOT NULL,
+	author_url    TEXT,
   body          TEXT NOT NULL,
   created_at    INTEGER NOT NULL,
   approved_at   INTEGER,

@@ -17,6 +17,7 @@ import (
 	"github.com/geschke/fyndmark/config"
 	"github.com/geschke/fyndmark/pkg/cors"
 	"github.com/geschke/fyndmark/pkg/db"
+	"github.com/geschke/fyndmark/pkg/generator"
 	"github.com/geschke/fyndmark/pkg/mailer"
 	"github.com/geschke/fyndmark/pkg/turnstile"
 	"github.com/gin-gonic/gin"
@@ -37,6 +38,7 @@ type CreateCommentRequest struct {
 	ParentID       string `json:"parent_id"`
 	Author         string `json:"author"`
 	Email          string `json:"email"`
+	AuthorUrl      string `json:"author_url"`
 	Body           string `json:"body"`
 	TurnstileToken string `json:"turnstile_token"`
 }
@@ -96,6 +98,7 @@ func (ct CommentsController) PostComment(c *gin.Context) {
 	req.PostPath = strings.TrimSpace(req.PostPath)
 	req.ParentID = strings.TrimSpace(req.ParentID)
 	req.Author = strings.TrimSpace(req.Author)
+
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 	req.Body = strings.TrimSpace(req.Body)
 
@@ -151,6 +154,10 @@ func (ct CommentsController) PostComment(c *gin.Context) {
 	if req.ParentID != "" {
 		parentID = sql.NullString{String: req.ParentID, Valid: true}
 	}
+	authorUrl := sql.NullString{Valid: false}
+	if req.AuthorUrl != "" {
+		authorUrl = sql.NullString{String: req.AuthorUrl, Valid: true}
+	}
 
 	// Insert into DB (pending by default)
 	if ct.DB == nil {
@@ -167,6 +174,7 @@ func (ct CommentsController) PostComment(c *gin.Context) {
 		Status:    "pending",
 		Author:    req.Author,
 		Email:     req.Email,
+		AuthorUrl: authorUrl,
 		Body:      req.Body,
 		CreatedAt: time.Now().Unix(),
 	})
@@ -190,34 +198,23 @@ func (ct CommentsController) PostComment(c *gin.Context) {
 	rejectLink := fmt.Sprintf("%s/api/comments/%s/decision?token=%s", base, siteID, rejectToken)
 
 	// Send admin email (do not fail the request if mail fails)
-	subject := fmt.Sprintf("[Fyndmark] New comment pending (%s)", siteID)
-
-	var sb strings.Builder
-	sb.WriteString("New comment pending\n\n")
-	sb.WriteString("Site: " + siteID + "\n")
-	sb.WriteString("Post path: " + req.PostPath + "\n")
-	if req.EntryID != "" {
-		sb.WriteString("Entry ID: " + req.EntryID + "\n")
-	}
-	if req.ParentID != "" {
-		sb.WriteString("Parent ID: " + req.ParentID + "\n")
-	}
-	sb.WriteString("\n")
-	sb.WriteString("Author: " + req.Author + "\n")
-	sb.WriteString("Email: " + req.Email + "\n\n")
-	sb.WriteString("Body:\n")
-	sb.WriteString(req.Body)
-	sb.WriteString("\n\n")
-	sb.WriteString("Approve:\n")
-	sb.WriteString(approveLink)
-	sb.WriteString("\n\n")
-	sb.WriteString("Reject:\n")
-	sb.WriteString(rejectLink)
-	sb.WriteString("\n")
+	subject, body, _ := generator.BuildModerationMail(generator.ModerationMailInput{
+		SiteID:     siteID,
+		PostPath:   req.PostPath,
+		EntryID:    req.EntryID,
+		ParentID:   req.ParentID,
+		CommentID:  commentID,
+		Author:     req.Author,
+		Email:      req.Email,
+		AuthorUrl:  req.AuthorUrl,
+		Body:       req.Body,
+		CreatedAt:  time.Now(),
+		ApproveURL: approveLink,
+		RejectURL:  rejectLink,
+	})
 
 	mailSent := true
-	if err := mailer.SendTextMail(siteCfg.AdminRecipients, subject, sb.String()); err != nil {
-
+	if err := mailer.SendTextMail(siteCfg.AdminRecipients, subject, body); err != nil {
 		mailSent = false
 		log.Printf("Failed to send admin mail for comment %s: %v", commentID, err)
 	}
