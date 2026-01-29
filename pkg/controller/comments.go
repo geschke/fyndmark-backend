@@ -13,12 +13,14 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/geschke/fyndmark/config"
 	"github.com/geschke/fyndmark/pkg/cors"
 	"github.com/geschke/fyndmark/pkg/db"
 	"github.com/geschke/fyndmark/pkg/generator"
 	"github.com/geschke/fyndmark/pkg/mailer"
+	"github.com/geschke/fyndmark/pkg/sanitize"
 	"github.com/geschke/fyndmark/pkg/turnstile"
 	"github.com/gin-gonic/gin"
 	"github.com/oklog/ulid/v2"
@@ -97,9 +99,65 @@ func (ct CommentsController) PostComment(c *gin.Context) {
 	req.EntryID = strings.TrimSpace(req.EntryID)
 	req.PostPath = strings.TrimSpace(req.PostPath)
 	req.ParentID = strings.TrimSpace(req.ParentID)
-	req.Author = strings.TrimSpace(req.Author)
 
-	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	// Sanitize author name (strict whitelist, UTF-8 safe)
+	var authorReport sanitize.AuthorNameReport
+	req.Author, authorReport = sanitize.SanitizeAuthorName(req.Author, 0)
+
+	if req.Author == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "invalid_author",
+		})
+		return
+	}
+	if authorReport.Changed {
+		log.Printf(
+			"author sanitized (site=%s): removed_ctrl=%d removed_bad=%d",
+			siteID,
+			authorReport.RemovedControlChars,
+			authorReport.RemovedDisallowedChars,
+		)
+	}
+
+	req.AuthorUrl = strings.TrimSpace(req.AuthorUrl)
+
+	var urlReport sanitize.AuthorURLReport
+	req.AuthorUrl, urlReport, err = sanitize.SanitizeAuthorURL(req.AuthorUrl, 2048)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "invalid_author_url",
+		})
+		return
+	}
+
+	if urlReport.Changed {
+		log.Printf("author_url sanitized (site=%s): trimmed=%t", siteID, urlReport.Trimmed)
+	}
+
+	// Validate email strictly (plain addr-spec only)
+	var emailReport sanitize.EmailReport
+	req.Email, emailReport, err = sanitize.SanitizeEmail(req.Email, 254)
+	if err != nil {
+		if emailReport.RejectedEmpty {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"error":   "missing_email",
+			})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "invalid_email",
+		})
+		return
+	}
+
+	if emailReport.Changed {
+		log.Printf("email normalized (site=%s): trimmed=%t lower=%t", siteID, emailReport.Trimmed, emailReport.Lowercased)
+	}
+
 	req.Body = strings.TrimSpace(req.Body)
 
 	if req.PostPath == "" {
@@ -110,21 +168,14 @@ func (ct CommentsController) PostComment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "missing_author"})
 		return
 	}
-	if req.Email == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "missing_email"})
-		return
-	}
-	if len(req.Email) > 254 || !strings.Contains(req.Email, "@") {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "invalid_email"})
-		return
-	}
+
 	if req.Body == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "missing_body"})
 		return
 	}
 
 	// Size limits (basic DoS protection)
-	if len(req.Author) > 80 {
+	if utf8.RuneCountInString(req.Author) > 80 {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "author_too_long"})
 		return
 	}
@@ -163,6 +214,20 @@ func (ct CommentsController) PostComment(c *gin.Context) {
 	if ct.DB == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "db_not_initialized"})
 		return
+	}
+
+	// Validate ParentID if present (must exist, same site, same post, and be approved)
+	if req.ParentID != "" {
+		ok, err := ct.DB.ParentExists(context.Background(), siteID, req.ParentID, req.PostPath, true)
+		if err != nil {
+			log.Printf("ParentExists check failed (site=%s parent=%s): %v", siteID, req.ParentID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "db_query_failed"})
+			return
+		}
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "invalid_parent_id"})
+			return
+		}
 	}
 
 	err = ct.DB.InsertComment(context.Background(), db.Comment{

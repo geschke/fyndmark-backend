@@ -94,7 +94,7 @@ func SanitizeCommentBodyWithReport(input string) (string, CommentBodyReport) {
 	return out, rep
 }
 
-// Keep your existing SanitizeCommentBody API intact.
+// Keep existing SanitizeCommentBody API intact.
 func SanitizeCommentBody(input string) string {
 	out, _ := SanitizeCommentBodyWithReport(input)
 	return out

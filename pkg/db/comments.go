@@ -176,3 +176,43 @@ SELECT id, site_id, entry_id, post_path, parent_id, status, author, email, autho
 
 	return out, nil
 }
+
+// ParentExists checks whether a parent comment exists for the given site and post path.
+// If requireApproved is true, the parent must have status = 'approved'.
+// Returns (true, nil) if a matching parent exists, (false, nil) if not found.
+func (d *DB) ParentExists(ctx context.Context, siteID, parentID, postPath string, requireApproved bool) (bool, error) {
+	if d == nil || d.SQL == nil {
+		return false, fmt.Errorf("db not initialized")
+	}
+
+	siteID = strings.TrimSpace(siteID)
+	parentID = strings.TrimSpace(parentID)
+	postPath = strings.TrimSpace(postPath)
+
+	if siteID == "" || parentID == "" || postPath == "" {
+		return false, fmt.Errorf("siteID, parentID and postPath are required")
+	}
+
+	query := `
+SELECT 1
+  FROM comments
+ WHERE site_id = ?
+   AND id = ?
+   AND post_path = ?
+`
+	if requireApproved {
+		query += "   AND status = 'approved'\n"
+	}
+	query += " LIMIT 1;"
+
+	var one int
+	err := d.SQL.QueryRowContext(ctx, query, siteID, parentID, postPath).Scan(&one)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("parent exists query: %w", err)
+	}
+
+	return true, nil
+}
