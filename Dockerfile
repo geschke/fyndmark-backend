@@ -1,52 +1,76 @@
 # ---------- Build stage ----------
-FROM golang:1.25-alpine AS builder
-
-# Install build tools (if needed later)
-RUN apk add --no-cache ca-certificates
+FROM golang:1.25-bookworm AS builder
 
 WORKDIR /app
 
-# Copy go.mod / go.sum first to leverage Docker layer caching
+# Leverage Docker layer caching
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy the rest of the source code
 COPY . .
 
-# Build the binary
 ARG TARGETOS
 ARG TARGETARCH
 
+# Build the binary (CGO off is fine; Debian runtime doesn't care)
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/fyndmark .
 
-# ---------- Runtime stage ----------
-FROM alpine:3.23
 
-# Add CA certificates for HTTPS (Turnstile, SMTP with TLS, etc.)
-RUN apk add --no-cache ca-certificates
+# ---------- Hugo stage (latest extended) ----------
+FROM debian:bookworm-slim AS hugo
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl \
+  && rm -rf /var/lib/apt/lists/*
+
+ARG TARGETARCH
+
+RUN set -eux; \
+    # Map Docker arch to Hugo release arch naming
+    case "${TARGETARCH}" in \
+      amd64) HUGO_ARCH="Linux-64bit" ;; \
+      arm64) HUGO_ARCH="Linux-ARM64" ;; \
+      *) echo "Unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    HUGO_VERSION="$(curl -fsSL https://api.github.com/repos/gohugoio/hugo/releases/latest | \
+      grep -m1 '"tag_name":' | cut -d '"' -f4 | sed 's/^v//')"; \
+    curl -fsSL -o /tmp/hugo.tar.gz \
+      "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_${HUGO_ARCH}.tar.gz"; \
+    tar -xzf /tmp/hugo.tar.gz -C /tmp; \
+    mv /tmp/hugo /usr/local/bin/hugo; \
+    chmod +x /usr/local/bin/hugo; \
+    /usr/local/bin/hugo version
+
+
+# ---------- Runtime stage ----------
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    git \
+    openssh-client \
+    tzdata \
+  && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-RUN addgroup -S fyndmark && adduser -S fyndmark -G fyndmark
+RUN groupadd --system fyndmark && useradd --system --gid fyndmark --create-home --home-dir /home/fyndmark fyndmark
 
 WORKDIR /app
 
-# Copy binary from builder
+# Copy binaries
 COPY --from=builder /bin/fyndmark /bin/fyndmark
+COPY --from=hugo /usr/local/bin/hugo /usr/local/bin/hugo
 
-# Optional: directory for config files (volume mount or baked-in config)
-# You already search ".", "./config" and "/config" in your code,
-# so we provide /config as a reasonable default.
-RUN mkdir -p /config
+# Default config + working dirs
+RUN mkdir -p /config /app/website \
+ && chown -R fyndmark:fyndmark /config /app/website
+
 VOLUME ["/config"]
+VOLUME ["/app/website"]
 
-# Switch to non-root user
 USER fyndmark
 
-# Expose default HTTP port used by fyndmark (server.listen)
 EXPOSE 8080
 
-# Default command
-# You can override config path and flags via environment or args:
-#   docker run ... fyndmark --config /config/config.yaml
 ENTRYPOINT ["/bin/fyndmark"]
 CMD ["serve"]

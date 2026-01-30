@@ -1,26 +1,25 @@
 services:
   fyndmark:
-    image: fyndmark:latest       
-   
+    image: fyndmark:latest
     container_name: fyndmark
     restart: unless-stopped
 
-    # Map host port 8080 → container 8080
     ports:
       - "8080:8080"
 
-    # Mount local config directory into container
     volumes:
-      - ./config:/config:ro
+      # Config
+      - ./config.yaml:/config/config.yaml:ro
 
-    # Optional: environment overrides for Viper
+      # SQLite database directory
+      - ./data:/app/data
+
+      # Hugo website checkout / working directory
+      - ./website:/app/website
+
     environment:
-      # Example: override server.listen if needed
-      # SERVER_LISTEN: ":8080"
-      # SMTP_HOST: "mailout.geschke.net"
-      # SMTP_PORT: "25"
-      # SMTP_TLS_POLICY: "none"
-      TZ: "Europe/Berlin"
+      # optional, but usually useful
+      TZ: Europe/Berlin
 
-    # Run fyndmark with an explicit config path
-    command: ["--config", "/config/config.yaml"]
+    # serve is already default via Dockerfile
+    # command: ["serve"]
