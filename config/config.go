@@ -31,8 +31,8 @@ type SQLiteConfig struct {
 
 // HugoConfig controls whether Hugo should be executed by fyndmark (optional).
 type HugoConfig struct {
-	// Enabled controls whether the backend should run Hugo after generating markdown files.
-	Enabled bool `mapstructure:"enabled"`
+	// Disables controls whether the backend should run Hugo after generating markdown files, default false, so Hugo will run. Set to true if this step should be skipped.
+	Disabled bool `mapstructure:"disabled"`
 }
 
 // CommentsSiteConfig describes one logical site/blog for comments.

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -34,13 +33,7 @@ func CheckoutWithContext(ctx context.Context, siteID string) error {
 	}
 
 	// Determine target directory.
-	targetDir := strings.TrimSpace(gc.CloneDir)
-	if targetDir == "" {
-		// Default working directory (relative to current working dir)
-		targetDir = filepath.Join(".", "website", siteID)
-	} else {
-		targetDir = filepath.Clean(targetDir)
-	}
+	targetDir, _ := ResolveWorkdir(siteID)
 
 	// Idempotent behavior: always start with a clean directory.
 	_ = os.RemoveAll(targetDir)

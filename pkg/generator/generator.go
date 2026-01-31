@@ -12,6 +12,7 @@ import (
 
 	"github.com/geschke/fyndmark/config"
 	dbpkg "github.com/geschke/fyndmark/pkg/db"
+	"github.com/geschke/fyndmark/pkg/git"
 	"github.com/geschke/fyndmark/pkg/sanitize"
 )
 
@@ -37,13 +38,8 @@ func GenerateWithContext(ctx context.Context, siteID string) error {
 		return fmt.Errorf("unknown site_id %q (not found in comment_sites)", siteID)
 	}
 
-	// Resolve repo working directory (same logic as your git wrapper).
-	workDir := strings.TrimSpace(siteCfg.Git.CloneDir)
-	if workDir == "" {
-		workDir = filepath.Join(".", "website", siteID)
-	} else {
-		workDir = filepath.Clean(workDir)
-	}
+	// Resolve repo working directory
+	workDir, _ := git.ResolveWorkdir(siteID)
 
 	// Load timezone for markdown timestamps.
 	loc, err := resolveLocation(strings.TrimSpace(siteCfg.Timezone))

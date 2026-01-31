@@ -9,11 +9,11 @@ import (
 )
 
 var (
-	genSiteID string
+	siteID string
 )
 
 func init() {
-	generateCommentsCmd.Flags().StringVar(&genSiteID, "site-id", "", "Site ID from config.comment_sites (required)")
+	generateCommentsCmd.Flags().StringVar(&siteID, "site-id", "", "Site ID from config.comment_sites (required)")
 	rootCmd.AddCommand(generateCommentsCmd)
 }
 
@@ -22,6 +22,6 @@ var generateCommentsCmd = &cobra.Command{
 	Short: "Generate markdown comment files into each page bundle (<bundle>/comments/*.md)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Println("generate-comments called")
-		return generatorcli.Generate(context.Background(), genSiteID)
+		return generatorcli.Generate(context.Background(), siteID)
 	},
 }

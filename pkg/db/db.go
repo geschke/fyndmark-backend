@@ -85,6 +85,23 @@ CREATE TABLE IF NOT EXISTS comments (
 		`CREATE INDEX IF NOT EXISTS idx_comments_site_status_created ON comments(site_id, status, created_at);`,
 		`CREATE INDEX IF NOT EXISTS idx_comments_site_post_created   ON comments(site_id, post_path, created_at);`,
 		`CREATE INDEX IF NOT EXISTS idx_comments_site_parent_created ON comments(site_id, parent_id, created_at);`,
+		`,
+CREATE TABLE IF NOT EXISTS pipeline_runs (
+  id                  INTEGER PRIMARY KEY,
+  site_id             TEXT NOT NULL,
+  trigger_comment_id  TEXT,
+
+  state               TEXT NOT NULL,        -- queued|running|success|failed
+  step                TEXT,                -- checkout|hugo|commit|push
+  error_message       TEXT,
+
+  created_at          INTEGER NOT NULL,
+  started_at          INTEGER,
+  finished_at         INTEGER
+);
+`,
+		`CREATE INDEX IF NOT EXISTS idx_runs_site_created  ON pipeline_runs(site_id, created_at);`,
+		`CREATE INDEX IF NOT EXISTS idx_runs_state_created ON pipeline_runs(state, created_at);`,
 	}
 
 	for _, s := range stmts {

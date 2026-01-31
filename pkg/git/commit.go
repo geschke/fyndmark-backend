@@ -3,11 +3,9 @@ package git
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/geschke/fyndmark/config"
 	"github.com/geschke/fyndmark/pkg/gitcli"
 )
 
@@ -21,17 +19,7 @@ func CommitWithContext(ctx context.Context, siteID string, message string) error
 		return fmt.Errorf("site_id is required (use --site-id)")
 	}
 
-	siteCfg, ok := config.Cfg.CommentSites[siteID]
-	if !ok {
-		return fmt.Errorf("unknown site_id %q (not found in comment_sites)", siteID)
-	}
-
-	workDir := strings.TrimSpace(siteCfg.Git.CloneDir)
-	if workDir == "" {
-		workDir = filepath.Join(".", "website", siteID)
-	} else {
-		workDir = filepath.Clean(workDir)
-	}
+	workDir, _ := ResolveWorkdir(siteID)
 
 	// If nothing changed, do nothing.
 	status, err := gitcli.StatusPorcelain(ctx, workDir, 30*time.Second)
