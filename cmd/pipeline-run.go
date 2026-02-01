@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/geschke/fyndmark/pkg/pipeline"
 	"github.com/spf13/cobra"
@@ -29,11 +30,17 @@ var pipelineRunCmd = &cobra.Command{
 		}
 		defer cleanup()
 
-		r := pipeline.Runner{
-			DB: database,
+		siteID = strings.TrimSpace(runSiteID)
+		if siteID == "" {
+			return fmt.Errorf("site_id is required (use --site-id)")
 		}
 
-		runID, err := r.Run(context.Background(), runSiteID, "")
+		r := pipeline.Runner{
+			DB:     database,
+			SiteID: siteID,
+		}
+
+		runID, err := r.Run(context.Background(), "")
 		if err != nil {
 			return err
 		}

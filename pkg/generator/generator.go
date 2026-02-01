@@ -16,14 +16,23 @@ import (
 	"github.com/geschke/fyndmark/pkg/sanitize"
 )
 
-// GenerateWithDB reads approved comments from SQLite and writes them as markdown
+type Generator struct {
+	DB     *db.DB
+	SiteID string
+}
+
+// Generate reads approved comments from SQLite and writes them as markdown
 // files into each Hugo page bundle under <bundle>/comments/*.md.
 //
 // Bundle mapping:
 //   - comments.post_path like "/posts/foo/" maps to "<workDir>/content/posts/foo/"
 //   - within that directory, files are written to "<bundle>/comments/YYYY-MM-DD-NNN.md"
-func GenerateWithDB(ctx context.Context, siteID string, database *db.DB) error {
-	siteID = strings.TrimSpace(siteID)
+func (g *Generator) Generate(ctx context.Context) error {
+	if g == nil || g.DB == nil {
+		return fmt.Errorf("generator: DB is nil")
+	}
+
+	siteID := strings.TrimSpace(g.SiteID)
 	if siteID == "" {
 		return fmt.Errorf("site_id is required (use --site-id)")
 	}
@@ -42,7 +51,7 @@ func GenerateWithDB(ctx context.Context, siteID string, database *db.DB) error {
 		return fmt.Errorf("invalid timezone for comment_sites.%s.timezone: %w", siteID, err)
 	}
 
-	comments, err := database.ListApprovedComments(ctx, siteID)
+	comments, err := g.DB.ListApprovedComments(ctx, siteID)
 	if err != nil {
 		return err
 	}

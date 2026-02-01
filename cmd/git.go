@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"strings"
 
 	"github.com/geschke/fyndmark/pkg/git"
 	"github.com/spf13/cobra"
@@ -32,7 +34,16 @@ var gitCheckoutCmd = &cobra.Command{
 	Short: "Clone the configured Hugo website repository for a comment site",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Println("git-checkout called")
-		return git.Checkout(gitSiteID)
+		gitSiteID = strings.TrimSpace(gitSiteID)
+		if gitSiteID == "" {
+			return fmt.Errorf("site_id is required (use --site-id)")
+		}
+
+		r := git.GitRunner{
+			SiteID: gitSiteID,
+		}
+
+		return r.Checkout(context.Background())
 	},
 }
 
@@ -41,7 +52,16 @@ var gitCommitCmd = &cobra.Command{
 	Short: "Commit all changes in the checked out website repository",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Println("git-commit called")
-		return git.Commit(gitSiteID, gitCommitMsg)
+		gitSiteID = strings.TrimSpace(gitSiteID)
+		if gitSiteID == "" {
+			return fmt.Errorf("site_id is required (use --site-id)")
+		}
+
+		r := git.GitRunner{
+			SiteID: gitSiteID,
+		}
+
+		return r.Commit(context.Background(), gitCommitMsg)
 	},
 }
 
@@ -50,6 +70,15 @@ var gitPushCmd = &cobra.Command{
 	Short: "Push the current branch of the checked out website repository",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Println("git-push called")
-		return git.Push(gitSiteID)
+		gitSiteID = strings.TrimSpace(gitSiteID)
+		if gitSiteID == "" {
+			return fmt.Errorf("site_id is required (use --site-id)")
+		}
+
+		r := git.GitRunner{
+			SiteID: gitSiteID,
+		}
+
+		return r.Push(context.Background())
 	},
 }

@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/geschke/fyndmark/pkg/generator"
 	"github.com/spf13/cobra"
@@ -29,6 +30,16 @@ var generateCommentsCmd = &cobra.Command{
 		}
 		defer cleanup()
 
-		return generator.GenerateWithDB(context.Background(), siteID, database)
+		siteID = strings.TrimSpace(siteID)
+		if siteID == "" {
+			return fmt.Errorf("site_id is required (use --site-id)")
+		}
+
+		g := generator.Generator{
+			DB:     database,
+			SiteID: siteID,
+		}
+
+		return g.Generate(context.Background())
 	},
 }

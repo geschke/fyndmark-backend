@@ -11,8 +11,15 @@ import (
 	"github.com/geschke/fyndmark/pkg/gitcli"
 )
 
-func Checkout(siteID string) error {
-	return CheckoutWithContext(context.Background(), siteID)
+type GitRunner struct {
+	SiteID string
+}
+
+func (r *GitRunner) Checkout(ctx context.Context) error {
+	if r == nil {
+		return fmt.Errorf("git runner is nil")
+	}
+	return CheckoutWithContext(ctx, r.SiteID)
 }
 
 func CheckoutWithContext(ctx context.Context, siteID string) error {

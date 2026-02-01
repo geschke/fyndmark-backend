@@ -11,8 +11,15 @@ import (
 	"github.com/geschke/fyndmark/pkg/hugocli"
 )
 
-func Run(siteId string) error {
-	return RunWithContext(context.Background(), siteId)
+type HugoRunner struct {
+	SiteID string
+}
+
+func (r *HugoRunner) Run(ctx context.Context) error {
+	if r == nil {
+		return fmt.Errorf("hugo runner is nil")
+	}
+	return RunWithContext(ctx, r.SiteID)
 }
 
 func RunWithContext(ctx context.Context, siteId string) error {

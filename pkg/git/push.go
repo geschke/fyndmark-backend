@@ -9,8 +9,11 @@ import (
 	"github.com/geschke/fyndmark/pkg/gitcli"
 )
 
-func Push(siteID string) error {
-	return PushWithContext(context.Background(), siteID)
+func (r *GitRunner) Push(ctx context.Context) error {
+	if r == nil {
+		return fmt.Errorf("git runner is nil")
+	}
+	return PushWithContext(ctx, r.SiteID)
 }
 
 func PushWithContext(ctx context.Context, siteID string) error {

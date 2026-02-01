@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"strings"
 
 	"github.com/geschke/fyndmark/pkg/hugo"
 	"github.com/spf13/cobra"
@@ -19,6 +21,15 @@ var hugoRunCmd = &cobra.Command{
 	Short: "Run Hugo to generate the static site for a comment site",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Println("hugo-run called")
-		return hugo.Run(hugoRunSiteId)
+		hugoRunSiteId = strings.TrimSpace(hugoRunSiteId)
+		if hugoRunSiteId == "" {
+			return fmt.Errorf("site_id is required (use --site-id)")
+		}
+
+		r := hugo.HugoRunner{
+			SiteID: hugoRunSiteId,
+		}
+
+		return r.Run(context.Background())
 	},
 }
