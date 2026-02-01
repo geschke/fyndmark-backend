@@ -18,20 +18,22 @@ var (
 	cfgFile string
 	rootCmd = &cobra.Command{
 		Use:   "fyndmark",
-		Short: "Minimal form-to-email relay server with per-form config and optional Turnstile validation.",
-		Long: `fyndmark is a lightweight form-to-email relay service.
-It accepts form submissions, validates fields, optionally verifies
-Cloudflare Turnstile tokens, and sends the collected data via SMTP.
+		Short: "Lightweight self-hosted comment backend for Hugo sites (Git-based workflow).",
+		Long: `fyndmark is a small, self-hosted comment backend designed for Hugo websites.
 
-Configuration can be provided through a config file (YAML, JSON, TOML),
-environment variables, or CLI flags. Each form can define its own fields,
-recipients, CORS rules, and Turnstile settings.
+It accepts comment submissions, stores them in SQLite, and generates
+markdown files directly inside each page bundle under content/.../comments/.
+These files can be committed and pushed to Git automatically.
+
+Optionally, Hugo can be executed after generation, or the site can be
+built externally (e.g. via CI/CD or GitHub Actions).
+
+Configuration is file-based (YAML/JSON/TOML) or via environment variables.
 
 Typical usage:
   fyndmark serve --config /path/to/config.yaml
 
-fyndmark is designed for self-hosted environments where a small,
-simple mail handler is preferred over cloud-based solutions.`,
+fyndmark focuses on simplicity and full control — just files, Git, and Hugo.`,
 
 		// Uncomment the following line if your bare application
 		// has an action associated with it:

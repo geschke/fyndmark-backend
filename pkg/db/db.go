@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS comments (
 		`CREATE INDEX IF NOT EXISTS idx_comments_site_status_created ON comments(site_id, status, created_at);`,
 		`CREATE INDEX IF NOT EXISTS idx_comments_site_post_created   ON comments(site_id, post_path, created_at);`,
 		`CREATE INDEX IF NOT EXISTS idx_comments_site_parent_created ON comments(site_id, parent_id, created_at);`,
-		`,
+		`
 CREATE TABLE IF NOT EXISTS pipeline_runs (
   id                  INTEGER PRIMARY KEY,
   site_id             TEXT NOT NULL,

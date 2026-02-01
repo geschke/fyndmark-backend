@@ -6,18 +6,11 @@ import (
 	"strings"
 
 	"github.com/geschke/fyndmark/config"
+	"github.com/geschke/fyndmark/pkg/db"
 	"github.com/geschke/fyndmark/pkg/generator"
 	"github.com/geschke/fyndmark/pkg/git"
 	"github.com/geschke/fyndmark/pkg/hugo"
 )
-
-type RunStore interface {
-	CreateRun(siteID, commentID string) (int64, error)
-	MarkRunRunning(runID int64) error
-	MarkRunStep(runID int64, step string) error
-	MarkRunFailed(runID int64, step, msg string) error
-	MarkRunSuccess(runID int64) error
-}
 
 const (
 	StepCheckout = "checkout"
@@ -28,7 +21,7 @@ const (
 )
 
 type Runner struct {
-	DB RunStore
+	DB *db.DB
 }
 
 func (r *Runner) Run(ctx context.Context, siteID string, triggerCommentID string) (int64, error) {
@@ -72,7 +65,7 @@ func (r *Runner) Run(ctx context.Context, siteID string, triggerCommentID string
 	if err := r.DB.MarkRunStep(runID, StepGenerate); err != nil {
 		return runID, err
 	}
-	if err := generator.GenerateWithContext(ctx, siteID); err != nil {
+	if err := generator.GenerateWithDB(ctx, siteID, r.DB); err != nil {
 		return runID, fail(StepGenerate, err)
 	}
 

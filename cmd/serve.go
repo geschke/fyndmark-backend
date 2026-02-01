@@ -32,6 +32,12 @@ fields, recipients, CORS settings, and optional Turnstile validation.`,
 
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Println("serve called")
-		return server.Start()
+
+		database, cleanup, err := openDatabase()
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+		return server.Start(database)
 	},
 }

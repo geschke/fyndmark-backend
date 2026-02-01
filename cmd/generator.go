@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/geschke/fyndmark/pkg/generatorcli"
+	"github.com/geschke/fyndmark/pkg/generator"
 	"github.com/spf13/cobra"
 )
 
@@ -22,6 +22,13 @@ var generateCommentsCmd = &cobra.Command{
 	Short: "Generate markdown comment files into each page bundle (<bundle>/comments/*.md)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Println("generate-comments called")
-		return generatorcli.Generate(context.Background(), siteID)
+
+		database, cleanup, err := openDatabase()
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+
+		return generator.GenerateWithDB(context.Background(), siteID, database)
 	},
 }

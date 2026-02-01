@@ -11,23 +11,18 @@ import (
 	"time"
 
 	"github.com/geschke/fyndmark/config"
-	dbpkg "github.com/geschke/fyndmark/pkg/db"
+	"github.com/geschke/fyndmark/pkg/db"
 	"github.com/geschke/fyndmark/pkg/git"
 	"github.com/geschke/fyndmark/pkg/sanitize"
 )
 
-// Generate is a small wrapper around GenerateWithContext.
-func Generate(siteID string) error {
-	return GenerateWithContext(context.Background(), siteID)
-}
-
-// GenerateWithContext reads approved comments from SQLite and writes them as markdown
+// GenerateWithDB reads approved comments from SQLite and writes them as markdown
 // files into each Hugo page bundle under <bundle>/comments/*.md.
 //
 // Bundle mapping:
 //   - comments.post_path like "/posts/foo/" maps to "<workDir>/content/posts/foo/"
 //   - within that directory, files are written to "<bundle>/comments/YYYY-MM-DD-NNN.md"
-func GenerateWithContext(ctx context.Context, siteID string) error {
+func GenerateWithDB(ctx context.Context, siteID string, database *db.DB) error {
 	siteID = strings.TrimSpace(siteID)
 	if siteID == "" {
 		return fmt.Errorf("site_id is required (use --site-id)")
@@ -47,25 +42,13 @@ func GenerateWithContext(ctx context.Context, siteID string) error {
 		return fmt.Errorf("invalid timezone for comment_sites.%s.timezone: %w", siteID, err)
 	}
 
-	// Open DB via db package (applies pragmas).
-	sqlitePath := strings.TrimSpace(config.Cfg.SQLite.Path)
-	if sqlitePath == "" {
-		return fmt.Errorf("sqlite.path must be set")
-	}
-
-	d, err := dbpkg.Open(sqlitePath)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = d.Close() }()
-
-	comments, err := d.ListApprovedComments(ctx, siteID)
+	comments, err := database.ListApprovedComments(ctx, siteID)
 	if err != nil {
 		return err
 	}
 
 	// Group by post_path.
-	byPostPath := map[string][]dbpkg.Comment{}
+	byPostPath := map[string][]db.Comment{}
 	for _, c := range comments {
 		postPath := normalizePostPath(c.PostPath)
 		if postPath == "" {
