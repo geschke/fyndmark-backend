@@ -27,11 +27,16 @@ import (
 )
 
 type CommentsController struct {
-	DB *db.DB
+	DB       *db.DB
+	Enqueuer PipelineEnqueuer
 }
 
-func NewCommentsController(database *db.DB) *CommentsController {
-	return &CommentsController{DB: database}
+type PipelineEnqueuer interface {
+	EnqueueRun(runID int64, siteID, commentID string) error
+}
+
+func NewCommentsController(database *db.DB, enqueuer PipelineEnqueuer) *CommentsController {
+	return &CommentsController{DB: database, Enqueuer: enqueuer}
 }
 
 type CreateCommentRequest struct {
@@ -424,7 +429,27 @@ func (ct CommentsController) GetDecision(c *gin.Context) {
 			c.String(http.StatusOK, "nothing to approve (already decided or not found)")
 			return
 		}
-		c.String(http.StatusOK, "approved")
+
+		if ct.Enqueuer == nil {
+			c.String(http.StatusOK, "approved (pipeline not configured)")
+			return
+		}
+
+		runID, err := ct.DB.CreateRun(siteID, commentID)
+		if err != nil {
+			log.Printf("create run failed (site=%s id=%s): %v", siteID, commentID, err)
+			c.String(http.StatusOK, "approved (pipeline enqueue failed)")
+			return
+		}
+
+		if err := ct.Enqueuer.EnqueueRun(runID, siteID, commentID); err != nil {
+			_ = ct.DB.MarkRunFailed(runID, "enqueue", err.Error())
+			log.Printf("enqueue run failed (site=%s id=%s run_id=%d): %v", siteID, commentID, runID, err)
+			c.String(http.StatusOK, "approved (pipeline enqueue failed)")
+			return
+		}
+
+		c.String(http.StatusOK, fmt.Sprintf("approved (pipeline queued, run_id=%d)", runID))
 		return
 
 	case "reject":
