@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/geschke/fyndmark/config"
+	"github.com/geschke/fyndmark/pkg/captcha"
 	"github.com/geschke/fyndmark/pkg/cors"
 	"github.com/geschke/fyndmark/pkg/mailer"
-	"github.com/geschke/fyndmark/pkg/turnstile"
 	"github.com/gin-gonic/gin"
 )
 
@@ -44,26 +44,35 @@ func (ct FeedbackController) PostMail(c *gin.Context) {
 		return
 	}
 
-	// Turnstile verification (per form config)
-	token := c.PostForm("cf-turnstile-response")
-	tsCfg := formCfg.Turnstile
-
-	okTS, tsErrors, err := turnstile.Validate(token, c.ClientIP(), tsCfg.SecretKey, tsCfg.Enabled)
+	// Captcha verification (per form config)
+	token := strings.TrimSpace(c.PostForm("cf-turnstile-response"))
+	provider, err := captcha.ResolveProvider(formCfg.Captcha)
 	if err != nil {
-		log.Printf("Turnstile verification error for form %s: %v", formID, err)
+		log.Printf("Captcha configuration error for form %s: %v", formID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   "captcha_verify_failed",
 		})
 		return
 	}
-	if !okTS {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success":     false,
-			"error":       "captcha_invalid",
-			"error_codes": tsErrors,
-		})
-		return
+	if provider != nil {
+		okTS, tsErrors, err := provider.Validate(token, c.ClientIP())
+		if err != nil {
+			log.Printf("Captcha verification error for form %s: %v", formID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"error":   "captcha_verify_failed",
+			})
+			return
+		}
+		if !okTS {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success":     false,
+				"error":       "captcha_invalid",
+				"error_codes": tsErrors,
+			})
+			return
+		}
 	}
 
 	// From here on, CORS is OK and this is not a preflight request.

@@ -9,19 +9,37 @@ import (
 	"time"
 )
 
+type Provider struct {
+	SecretKey string
+}
+
 type VerifyResponse struct {
 	Success    bool     `json:"success"`
 	ErrorCodes []string `json:"error-codes"`
 }
 
-// Verify checks a Turnstile token against Cloudflare's API.
-// If enabled is false, verification is skipped and treated as success.
+func New(secretKey string) (*Provider, error) {
+	if secretKey == "" {
+		return nil, fmt.Errorf("turnstile secret key is not configured")
+	}
+	return &Provider{SecretKey: secretKey}, nil
+}
+
+// Validate checks a Turnstile token against Cloudflare's API.
+func (p *Provider) Validate(token, remoteIP string) (bool, []string, error) {
+	return verify(token, remoteIP, p.SecretKey)
+}
+
+// Validate is a legacy helper that supports enabled/disabled toggles.
 func Validate(token, remoteIP, secret string, enabled bool) (bool, []string, error) {
 	if !enabled {
 		// Turnstile disabled for this form → always succeed.
 		return true, nil, nil
 	}
+	return verify(token, remoteIP, secret)
+}
 
+func verify(token, remoteIP, secret string) (bool, []string, error) {
 	if secret == "" {
 		return false, nil, fmt.Errorf("turnstile secret key is not configured")
 	}

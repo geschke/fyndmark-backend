@@ -37,9 +37,9 @@ type HugoConfig struct {
 
 // CommentsSiteConfig describes one logical site/blog for comments.
 type CommentsSiteConfig struct {
-	Title              string          `mapstructure:"title"`
-	CORSAllowedOrigins []string        `mapstructure:"cors_allowed_origins"`
-	Turnstile          TurnstileConfig `mapstructure:"turnstile"`
+	Title              string         `mapstructure:"title"`
+	CORSAllowedOrigins []string       `mapstructure:"cors_allowed_origins"`
+	Captcha            *CaptchaConfig `mapstructure:"captcha"`
 
 	AdminRecipients []string   `mapstructure:"admin_recipients"`
 	TokenSecret     string     `mapstructure:"token_secret"`
@@ -108,19 +108,21 @@ type FieldConfig struct {
 	Options  []string `mapstructure:"options"`
 }
 
-type TurnstileConfig struct {
+type CaptchaConfig struct {
 	Enabled   bool   `mapstructure:"enabled"`
+	Provider  string `mapstructure:"provider"`
 	SecretKey string `mapstructure:"secret_key"`
+	SiteKey   string `mapstructure:"site_key"`
 }
 
 // FormConfig describes one logical form (e.g. feedback form for a specific site).
 type FormConfig struct {
-	Title              string          `mapstructure:"title"`
-	Recipients         []string        `mapstructure:"recipients"`
-	SubjectPrefix      string          `mapstructure:"subject_prefix"`
-	CORSAllowedOrigins []string        `mapstructure:"cors_allowed_origins"`
-	Fields             []FieldConfig   `mapstructure:"fields"`
-	Turnstile          TurnstileConfig `mapstructure:"turnstile"`
+	Title              string         `mapstructure:"title"`
+	Recipients         []string       `mapstructure:"recipients"`
+	SubjectPrefix      string         `mapstructure:"subject_prefix"`
+	CORSAllowedOrigins []string       `mapstructure:"cors_allowed_origins"`
+	Fields             []FieldConfig  `mapstructure:"fields"`
+	Captcha            *CaptchaConfig `mapstructure:"captcha"`
 }
 
 // AppConfig is the main configuration struct for the entire application.
@@ -249,6 +251,28 @@ func readAndSetConfig() error {
 		}
 		if strings.TrimSpace(siteCfg.TokenSecret) == "" {
 			return exitOnErr(fmt.Errorf("comment_sites.%s.token_secret must be set", siteID))
+		}
+		if siteCfg.Captcha != nil {
+			if strings.TrimSpace(siteCfg.Captcha.Provider) == "" {
+				return exitOnErr(fmt.Errorf("comment_sites.%s.captcha.provider must be set", siteID))
+			}
+			if strings.TrimSpace(siteCfg.Captcha.SecretKey) == "" {
+				return exitOnErr(fmt.Errorf("comment_sites.%s.captcha.secret_key must be set", siteID))
+			}
+		}
+	}
+
+	for formID, formCfg := range Cfg.Forms {
+		if len(formCfg.Recipients) == 0 {
+			return exitOnErr(fmt.Errorf("forms.%s.recipients must be set", formID))
+		}
+		if formCfg.Captcha != nil {
+			if strings.TrimSpace(formCfg.Captcha.Provider) == "" {
+				return exitOnErr(fmt.Errorf("forms.%s.captcha.provider must be set", formID))
+			}
+			if strings.TrimSpace(formCfg.Captcha.SecretKey) == "" {
+				return exitOnErr(fmt.Errorf("forms.%s.captcha.secret_key must be set", formID))
+			}
 		}
 	}
 

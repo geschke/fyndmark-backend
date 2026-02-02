@@ -16,12 +16,12 @@ import (
 	"unicode/utf8"
 
 	"github.com/geschke/fyndmark/config"
+	"github.com/geschke/fyndmark/pkg/captcha"
 	"github.com/geschke/fyndmark/pkg/cors"
 	"github.com/geschke/fyndmark/pkg/db"
 	"github.com/geschke/fyndmark/pkg/generator"
 	"github.com/geschke/fyndmark/pkg/mailer"
 	"github.com/geschke/fyndmark/pkg/sanitize"
-	"github.com/geschke/fyndmark/pkg/turnstile"
 	"github.com/gin-gonic/gin"
 	"github.com/oklog/ulid/v2"
 )
@@ -48,6 +48,7 @@ type CreateCommentRequest struct {
 	AuthorUrl      string `json:"author_url"`
 	Body           string `json:"body"`
 	TurnstileToken string `json:"turnstile_token"`
+	CaptchaToken   string `json:"captcha_token"`
 }
 
 // POST /api/comments/:siteid/
@@ -80,24 +81,38 @@ func (ct CommentsController) PostComment(c *gin.Context) {
 		return
 	}
 
-	// Turnstile verification (per site config)
-	tsCfg := siteCfg.Turnstile
-	okTS, tsErrors, err := turnstile.Validate(req.TurnstileToken, c.ClientIP(), tsCfg.SecretKey, tsCfg.Enabled)
+	// Captcha verification (per site config)
+	captchaToken := strings.TrimSpace(req.CaptchaToken)
+	if captchaToken == "" {
+		captchaToken = req.TurnstileToken
+	}
+	provider, err := captcha.ResolveProvider(siteCfg.Captcha)
 	if err != nil {
-		log.Printf("Turnstile verification error for site %s: %v", siteID, err)
+		log.Printf("Captcha configuration error for site %s: %v", siteID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   "captcha_verify_failed",
 		})
 		return
 	}
-	if !okTS {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success":     false,
-			"error":       "captcha_invalid",
-			"error_codes": tsErrors,
-		})
-		return
+	if provider != nil {
+		okTS, tsErrors, err := provider.Validate(captchaToken, c.ClientIP())
+		if err != nil {
+			log.Printf("Captcha verification error for site %s: %v", siteID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"error":   "captcha_verify_failed",
+			})
+			return
+		}
+		if !okTS {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success":     false,
+				"error":       "captcha_invalid",
+				"error_codes": tsErrors,
+			})
+			return
+		}
 	}
 
 	// Minimal validation + normalization
