@@ -22,7 +22,7 @@ func Start(database *db.DB) error {
 	gin.SetMode(gin.ReleaseMode)
 
 	//if config.LogLevel == "debug" {
-	gin.SetMode(gin.DebugMode)
+	//gin.SetMode(gin.DebugMode)
 	//}
 
 	router := gin.New()

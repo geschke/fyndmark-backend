@@ -79,10 +79,39 @@ When running the compiled binary directly, `git` must be available in `PATH`. `h
 
 ### Docker Compose
 
-For permanent or production-like deployments, Docker Compose is often the most convenient option. A ready-to-use example configuration is included in the repository. You can start it with:
+For permanent or production-like deployments, Docker Compose is often the most convenient option. 
+The container image already includes everything required (`git` and optionally `hugo`), so no additional tools are needed on the host.
+
+Minimal example of docker-compose.yml file:
+
+```
+services:
+  fyndmark:
+    image: ghcr.io/geschke/fyndmark:latest
+    container_name: fyndmark
+    restart: unless-stopped
+
+    ports:
+      - "8080:8080"
+
+    volumes:
+      # Configuration file
+      - ./config.yaml:/config/config.yaml:ro
+
+      # SQLite database location
+      - ./data:/app/data
+
+      # Hugo website working copy (git checkout happens here)
+      - ./website:/app/website
+
+    command: serve --config /config/config.yaml
+```
+
+Start it:
+
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d
+docker compose -f docker-compose.yml up -d
 ```
 
 This sets up persistent volumes and runs Fyndmark as a background service.

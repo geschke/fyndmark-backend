@@ -16,7 +16,7 @@ ARG TARGETARCH
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /bin/fyndmark .
 
 
-# ---------- Hugo stage (latest extended) ----------
+# ---------- Hugo stage (pinned extended) ----------
 FROM debian:bookworm-slim AS hugo
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -24,16 +24,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 ARG TARGETARCH
+ARG HUGO_VERSION=0.155.2
 
 RUN set -eux; \
-    # Map Docker arch to Hugo release arch naming
     case "${TARGETARCH}" in \
       amd64) HUGO_ARCH="Linux-64bit" ;; \
       arm64) HUGO_ARCH="Linux-ARM64" ;; \
       *) echo "Unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
     esac; \
-    HUGO_VERSION="$(curl -fsSL https://api.github.com/repos/gohugoio/hugo/releases/latest | \
-      grep -m1 '"tag_name":' | cut -d '"' -f4 | sed 's/^v//')"; \
     curl -fsSL -o /tmp/hugo.tar.gz \
       "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_${HUGO_ARCH}.tar.gz"; \
     tar -xzf /tmp/hugo.tar.gz -C /tmp; \
