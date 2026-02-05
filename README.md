@@ -1,246 +1,335 @@
-# Fyndmark Backend
+﻿# Fyndmark (fyndmark-backend)
 
-Fyndmark is a lightweight comment backend for Hugo, built with Go (gin-gonic).  
-It receives comment submissions via HTTP and stores them for further processing (e.g. moderation and static regeneration).
+Fyndmark is a lightweight, self-hosted comment backend for Hugo sites that follow a Git-based workflow.
 
-> Status: Work in progress / early prototype.
+The central idea is that comments should behave like regular content, not like dynamic data that requires a database at page render time. Instead of injecting comments at runtime, Fyndmark collects and moderates them, then writes them back into the Hugo project as Markdown files. From Hugo’s perspective, they are just normal files inside each page bundle.
 
----
+Because of this design, Git is not an add-on but a fundamental part of the system. Every approved comment becomes a committed file in the repository. The website itself remains fully static, can be deployed anywhere, and does not depend on a running backend or external service once built.
 
-...change this...
+Fyndmark focuses purely on the backend responsibilities: receiving comments, storing them safely in SQLite, handling moderation, and updating the repository. Rendering and frontend integration live separately in the Hugo theme component:
 
-## **Features**
+https://github.com/geschke/hugo-fyndmark
 
-* Per-form configuration
-* SMTP with optional TLS (`none`, `starttls`, `tls`)
-* Cloudflare Turnstile (per form)
-* Per-form CORS configuration
-* Field-by-field validation
-* Environment-variable overrides
-* Runs as a single static binary or as a Docker container
+Together, the backend and the theme form a small, fully self-hosted comment system that integrates naturally into existing Hugo and Git workflows.
 
----
 
-## Building from source
+## How it works
 
-You can build fyndmark locally using the standard Go toolchain.
-Go 1.21+ is recommended.
+When a visitor submits a comment, the backend stores it in SQLite and marks it as pending. An administrator receives a moderation email with signed approve or reject links. Only approved comments are written to disk.
 
-### Clone and build
+After approval, Fyndmark checks out the configured Git repository, generates Markdown files for the comments inside the corresponding page bundles, commits the changes, and pushes them back to the remote. This keeps the repository as the single source of truth for both content and comments.
+
+Running Hugo itself is optional. Some setups prefer to build the site later during deployment, for example in a CI pipeline, and only commit Markdown sources. Others let Fyndmark run Hugo locally and commit the generated HTML output as well. Both approaches are supported, but the Git workflow is always part of the process.
+
+CAPTCHA protection can be enabled if desired. Supported providers currently include Turnstile and hCaptcha, but the system also works without any CAPTCHA.
+
+
+## Typical flow
+
+1. A visitor submits a comment through the frontend.
+2. The backend stores it as `pending` in SQLite.
+3. An administrator reviews the comment via email.
+4. Approval generates Markdown files and updates the Git repository (optionally running Hugo).
+5. The next deployment already contains the new comment as static content.
+
+
+## Installation
+
+Fyndmark is primarily intended to run using the provided Docker image. The image already contains everything required at runtime, including Git and Hugo, so no additional tools need to be installed on the host system.
+
+Alternatively, you can build Fyndmark from source and run the binary directly. In that case, you must provide the required tools yourself. At minimum, `git` must be available on the system, and if you enable the integrated Hugo build step, `hugo` must be installed as well.
+
+
+### Quick start (Docker)
+
+The easiest way to get started is Docker. The official image already contains everything Fyndmark needs at runtime, including Git and Hugo, so no additional tools have to be installed on the host system.
+
+Mount your configuration file and two directories: one for the database and one for the working copy of your website repository. Then start the container:
 
 ```bash
-git clone https://github.com/geschke/fyndmark.git
-cd fyndmark
+docker run \
+  -p 8080:8080 \
+  -v $(pwd)/config.yaml:/config/config.yaml:ro \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/website:/app/website \
+  ghcr.io/geschke/fyndmark:latest
+```
+
+After startup, the server listens on port 8080 and is ready to receive comments.
+
+The mounted paths have the following purpose:
+
+* `config.yaml` contains all application settings
+* `data/` stores the SQLite database
+* `website/` is used as the Git working directory where the repository is checked out and comment files are generated
+
+
+### Build from source
+
+If you prefer running Fyndmark directly without containers, you can build the binary yourself. This is especially convenient during development:
+
+```bash
 go build -o fyndmark .
+./fyndmark serve --config ./config.yaml
 ```
 
-This produces a local binary named `fyndmark`.
+The behavior is identical to Docker; only the packaging differs.
 
-### Install globally
+When running the compiled binary directly, `git` must be available in `PATH`. `hugo` is additionally required unless `hugo.disabled: true`.
 
-If you prefer installing it into your `$GOPATH/bin` (or Go's module-aware bin directory):
+### Docker Compose
+
+For permanent or production-like deployments, Docker Compose is often the most convenient option. A ready-to-use example configuration is included in the repository. You can start it with:
 
 ```bash
-go install github.com/geschke/fyndmark@latest
+docker compose -f docker/docker-compose.yml up -d
 ```
 
-The binary `fyndmark` will be placed in:
+This sets up persistent volumes and runs Fyndmark as a background service.
 
-```
-$GOPATH/bin
-```
+### Requirements
 
-or for module-managed installs:
+At minimum, Fyndmark needs a writable SQLite database and access to your Git repository. If you enable the integrated pipeline, the system also requires the `git` binary and, optionally, `hugo` to be available locally.
 
-```
-~/go/bin
-```
-
-Make sure that directory is available in your `$PATH`.
-
----
+If you build your site elsewhere, for example in a CI pipeline, you can disable the Hugo step and only commit the generated Markdown files.
 
 
+## Configuration
 
-## **Configuration**
+Fyndmark is configured via a single `config.yaml` file (or environment variables), and the configuration is intentionally “small but complete”. Because the workflow is based on email moderation, SQLite storage, and a Git working copy, most settings are required for a functional setup. The example configuration above is meant as a realistic starting point; you can copy it and adjust it to your site.
 
-fyndmark loads configuration from:
+Configuration is grouped into three main areas: the HTTP server settings, the SQLite database path, and one or more comment sites under `comment_sites`. Each comment site is identified by its site ID (the map key) and provides all site-specific settings such as CORS, moderation recipients, Git access, optional CAPTCHA, and whether the integrated Hugo build step should be skipped.
+
+### Where config values come from
+
+Fyndmark loads configuration in this order:
 
 1. `--config <file>`
 2. Environment variables
-3. Files in `.`, `./config`, `/config` (`config.yaml`, `.env`, JSON, TOML)
+3. Files named `config.*` in `.`, `./config`, or `/config` (YAML/JSON/TOML), with `.env` as a fallback
 
-### **Example `config.yaml`**
+
+### Example `config.yaml`
+
+Use this as a reference and replace values with your own:
 
 ```yaml
 server:
-  listen: "0.0.0.0:8080"
-  log_level: "info" # currently not used
+  listen: ":8080"
+  log_level: "debug"   # currently not used
 
 smtp:
   host: "smtp.example.org"
   port: 587
   from: "noreply@example.org"
-  tls_policy: "starttls"   # none | starttls | tls
+  tls_policy: "opportunistic"   # none | opportunistic | mandatory
   username: "smtp-user"
   password: "smtp-pass"
 
-forms:
-  example_form:
-    title: "Example contact form"
-    recipients:
-      - "admin@example.org"
-    subject_prefix: "[Contact]"
+sqlite:
+  path: "./data/fyndmark.db"
+
+comment_sites:
+  my_site:
+    title: "Comments for my site"
     cors_allowed_origins:
       - "https://example.org"
       - "http://localhost:1313"
-    turnstile:
-      enabled: true
-      secret_key: "YOUR_TURNSTILE_SECRET"
-    fields:
-      - name: "name"
-        label: "Name"
-        type: "text"
-        required: true
-      - name: "email"
-        label: "E-Mail"
-        type: "email"
-        required: true
-      - name: "message"
-        label: "Message"
-        type: "text"
-        required: true
-```
-
----
-
-## **API**
-
-### **POST `/api/feedbackmail/:formid`**
-
-Example:
+    admin_recipients:
+      - "admin@example.org"
+    token_secret: "CHANGE-ME-TO-A-LONG-RANDOM-STRING"
+    timezone: "Europe/Berlin"
+    captcha:
+      enabled: false
+      provider: "turnstile"
+      #secret_key: "YOUR_TURNSTILE_SECRET"
+    hugo:
+      disabled: false
+    git:
+      repo_url: "https://github.com/you/your-hugo-site.git"
+      branch: "main"
+      access_token: ""   # empty if public
+      depth: 1
+      themes:
+        - name: "fyndmark"
+          repo_url: "https://github.com/geschke/hugo-fyndmark.git"
+          branch: "main"
+          target_path: "themes/hugo-fyndmark"
+          access_token: ""
+          depth: 1
 
 ```
-POST /api/feedbackmail/example_form
-```
 
-POST body fields are defined in the config under `forms.<id>.fields`.
 
----
 
-## **Environment Variables**
+### Options reference
 
-Viper maps config keys to environment variables using underscores:
+### `server`
 
-```
-SERVER_LISTEN=0.0.0.0:8080
-SMTP_HOST=smtp.example.org
-SMTP_TLS_POLICY=starttls
-```
+`server.listen` defines the address the HTTP server binds to, for example `:8080` or `0.0.0.0:8080`.
 
-Per-form values also work:
+* `listen` (string, required)
 
-```
-FORMS_EXAMPLE_FORM_TURNSTILE_ENABLED=true
-FORMS_EXAMPLE_FORM_TURNSTILE_SECRET_KEY=abc123
-FORMS_EXAMPLE_FORM_RECIPIENTS="a@example.org,b@example.org"
-FORMS_EXAMPLE_FORM_CORS_ALLOWED_ORIGINS="https://one,https://two"
-```
+### `sqlite`
 
----
+`sqlite.path` points to the SQLite database file used to store comments and pipeline run status.
 
-## **Running with Docker**
+* `path` (string, required)
 
-### **Direct run**
+Ensure the directory for `sqlite.path` exists and is writable by the process.
 
-```
-docker run \
-  -p 8080:8080 \
-  -v $(pwd)/config:/config \
-  ghcr.io/geschke/fyndmark:latest \
-  serve --config /config/config.yaml
-```
+### `smtp`
 
----
+SMTP is used to send moderation emails (approve/reject links) to the configured administrators.
 
-## **Docker Compose**
+* `host` (string, required)
+* `port` (int, optional): if omitted or `0`, the library default is used
+* `from` (string, required)
+* `username` (string, optional)
+* `password` (string, optional)
+* `tls_policy` (string, optional): controls TLS behavior for SMTP. Supported values are `none`, `opportunistic`, and `mandatory`.
+
+### `comment_sites`
+
+`comment_sites` is the core of the configuration. Each entry defines one Hugo site/blog. The key (for example `geschke_net`) is the site ID and is used in API routes like `/api/comments/:siteid`.
+
+Common fields:
+
+* `title` (string, optional): human-readable label used for logging and emails
+* `cors_allowed_origins` (list of strings, required): allowed origins for browser requests (typically your site URL and local Hugo preview)
+* `admin_recipients` (list of strings, required): moderation email recipients
+* `token_secret` (string, required): A long random secret string used to sign moderation links. Generate a sufficiently long, unpredictable value.
+* `timezone` (string, optional): IANA timezone string (for example `Europe/Berlin`). Default is `UTC`.
+
+#### `comment_sites.<site>.captcha` (optional)
+
+The `captcha` section is optional.
+If omitted entirely, no captcha validation is performed.
+If present, all required fields (`provider`, `secret_key`) must be set, even when `enabled: false`.
+The `enabled` flag is intended only to temporarily disable an otherwise complete configuration.
+
+* `enabled` (bool, optional)
+* `provider` (string, required if enabled): currently supported values are `turnstile` and `hcaptcha`
+* `secret_key` (string, required if enabled): provider secret used by the backend to verify tokens
+
+#### `comment_sites.<site>.hugo` (optional)
+
+The Hugo step is integrated but optional. By default it runs after comment generation. Set `disabled: true` to skip it (for example when your deployment pipeline runs Hugo elsewhere).
+
+* `disabled` (bool, optional, default: false)
+
+#### `comment_sites.<site>.git`
+
+Git is required because the workflow writes generated Markdown comment files into a working copy and pushes changes back to the remote repository.
+
+* `repo_url` (string, required): HTTPS URL to the Hugo site repository
+* `branch` (string, optional): if unset, Git uses the default branch
+* `access_token` (string, optional): used for HTTPS token auth; can be empty for public repos
+* `clone_dir` (string, optional): target directory for the working copy. If unset, a default directory is used (for example `./website/<site_id>`).
+* `depth` (int, optional): shallow clone depth; `0` means full clone
+* `recurse_submodules` (bool, optional): if true, submodules are initialized/updated during clone (use this if your Hugo site uses submodules for themes/components)
+
+##### `comment_sites.<site>.git.themes` (optional)
+
+`git.themes` is an optional convenience feature that allows Fyndmark to clone additional theme/component repositories into the checked out website working copy (typically under `themes/`). This is useful if you do not use Git submodules or if you want Fyndmark to ensure specific theme directories exist.
+
+Each entry supports:
+
+* `name` (string, optional): label used for logging
+* `repo_url` (string, required)
+* `branch` (string, optional)
+* `target_path` (string, required): path inside the checked out website repo (for example `themes/hugo-fyndmark`)
+* `access_token` (string, optional)
+* `depth` (int, optional)
+
+
+
+
+## Access to private Git repositories
+
+Fyndmark accesses your Hugo site repository via normal HTTPS Git commands (`clone`, `commit`, `push`).
+If the repository is private, authentication is required.
+
+This is done using a Personal Access Token which is configured as `git.access_token`.
+
+If the repository is public, this setting can simply be left empty.
+
+### GitHub (step-by-step)
+
+On GitHub, create a **fine-grained personal access token**:
+
+1. Open **Settings → Developer settings → Personal access tokens → Fine-grained tokens**
+2. Click **Generate new token**
+3. Select:
+
+   * Repository access → **Only select repositories**
+   * choose your Hugo repository
+4. Permissions:
+
+   * Repository permissions → **Contents → Read and write**
+   * nothing else is required
+5. Generate the token and copy it
+
+Then add it to your `config.yaml`:
 
 ```yaml
-services:
-  fyndmark:
-    image: ghcr.io/geschke/fyndmark:latest
-    container_name: fyndmark
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./config:/config
-    command: ["serve", "--config", "/config/config.yaml"]
+git:
+  repo_url: "https://github.com/you/your-hugo-site.git"
+  access_token: "github_pat_xxxxxxxxxxxxxxxxx"
 ```
 
----
+That’s all. Fyndmark will automatically use this token for clone and push.
 
-## **Purpose**
+### GitLab
 
-fyndmark exists to provide:
+GitLab provides the same mechanism via Personal Access Tokens.
 
-* a simple, fully self-hosted alternative to cloud-based mail handling
-* no external dependencies
-* minimal overhead
-* predictable behavior
+Create a token with:
 
-It is built for personal use but can be used anywhere a lightweight form-to-mail bridge is needed.
+* `read_repository`
+* `write_repository`
 
----
+and use it exactly like with GitHub.
 
-## Running behind Traefik (reverse proxy)
+### Security notes
 
-fyndmark is a good fit for running behind a reverse proxy such as Traefik.
-In this setup the container only listens on an internal port (e.g. `8080`), and Traefik terminates TLS and routes external requests (e.g. `https://func.example.org`) to the service.
+* Treat the token like a password
+* Do not commit it to Git
+* Prefer environment variables or Docker secrets in production
+* Fyndmark never prints or logs the token
 
-A minimal example with Traefik labels might look like this:
 
-```yaml
-services:
-  fyndmark:
-    image: ghcr.io/geschke/fyndmark:latest
-    container_name: fyndmark
-    restart: unless-stopped
-    volumes:
-      - ./config.yaml:/config/config.yaml:ro
-    environment:
-      TZ: "Europe/Berlin"
-    networks:
-      - traefik-public
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=traefik-public"
 
-      # HTTP → redirect to HTTPS
-      - "traefik.http.routers.fyndmark.rule=Host(`func.example.org`)"
-      - "traefik.http.routers.fyndmark.entrypoints=http"
-      - "traefik.http.middlewares.fyndmark-https-redirect.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.fyndmark-https-redirect.redirectscheme.permanent=true"
-      - "traefik.http.routers.fyndmark.middlewares=fyndmark-https-redirect"
 
-      # HTTPS router
-      - "traefik.http.routers.fyndmark-secured.rule=Host(`func.example.org`)"
-      - "traefik.http.routers.fyndmark-secured.entrypoints=https"
-      - "traefik.http.routers.fyndmark-secured.tls.certresolver=le-tls"
 
-      # Forward to the internal fyndmark port
-      - "traefik.http.services.fyndmark-secured.loadbalancer.server.port=8080"
 
-      # Optional: security / compression middlewares defined in Traefik file providers
-      - "traefik.http.routers.fyndmark-secured.middlewares=secHeaders@file,def-compress@file"
 
-networks:
-  traefik-public:
-    external: true
+
+
+
+## API endpoints
+
+### `POST /api/comments/:siteid`
+Creates a new comment (JSON). Example payload:
+
+```json
+{
+  "entry_id": "post-123",
+  "post_path": "/posts/hello-world/",
+  "parent_id": "",
+  "author": "Jane",
+  "email": "jane@example.org",
+  "author_url": "https://example.org",
+  "body": "Nice post!",
+  "captcha_token": "..."
+}
 ```
 
-In this configuration:
+### `GET /api/comments/:siteid/decision?token=...`
+Approve or reject via signed token (used by moderation emails).
 
-* fyndmark listens only on `8080` inside the Docker network.
-* Traefik handles HTTP/HTTPS entrypoints and TLS certificates.
-* The host `func.example.org` is routed to the fyndmark container without exposing any additional ports on the host.
+### `POST /api/feedbackmail/:formid`
+Sends a feedback mail based on `forms.<id>` config. Form fields are submitted as standard form values.
+
+### `GET /health`
+Basic health check.

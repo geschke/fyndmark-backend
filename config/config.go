@@ -112,7 +112,6 @@ type CaptchaConfig struct {
 	Enabled   bool   `mapstructure:"enabled"`
 	Provider  string `mapstructure:"provider"`
 	SecretKey string `mapstructure:"secret_key"`
-	SiteKey   string `mapstructure:"site_key"`
 }
 
 // FormConfig describes one logical form (e.g. feedback form for a specific site).
