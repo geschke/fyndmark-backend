@@ -102,6 +102,19 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
 `,
 		`CREATE INDEX IF NOT EXISTS idx_runs_site_created  ON pipeline_runs(site_id, created_at);`,
 		`CREATE INDEX IF NOT EXISTS idx_runs_state_created ON pipeline_runs(state, created_at);`,
+		`
+CREATE TABLE IF NOT EXISTS users (
+  id            INTEGER PRIMARY KEY,
+  password      TEXT NOT NULL,
+  firstname     TEXT,
+  lastname      TEXT,
+  email         TEXT NOT NULL,
+  date_created  INTEGER NOT NULL,
+  date_updated  INTEGER NOT NULL
+);
+`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email    ON users(email);`,
+		`CREATE INDEX        IF NOT EXISTS idx_users_updated  ON users(date_updated);`,
 	}
 
 	for _, s := range stmts {

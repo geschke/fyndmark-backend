@@ -16,13 +16,14 @@ import (
 	"github.com/geschke/fyndmark/pkg/pipeline"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/sessions"
 )
 
 func Start(database *db.DB) error {
 	gin.SetMode(gin.ReleaseMode)
 
 	//if config.LogLevel == "debug" {
-	//gin.SetMode(gin.DebugMode)
+	gin.SetMode(gin.DebugMode)
 	//}
 
 	router := gin.New()
@@ -31,6 +32,21 @@ func Start(database *db.DB) error {
 	worker := pipeline.NewWorker(database, pipeline.DefaultQueueSize)
 	worker.Start()
 	comments := controller.NewCommentsController(database, worker)
+
+	if config.Cfg.Auth.Enabled {
+		sessionName := config.Cfg.Auth.SessionName
+		if sessionName == "" {
+			sessionName = "fyndmark_session"
+		}
+		store := sessions.NewCookieStore([]byte(config.Cfg.Auth.SessionKey))
+		auth := controller.NewAuthController(database, store, sessionName)
+		router.POST("/api/auth/login", auth.PostLogin)
+		router.OPTIONS("/api/auth/login", auth.OptionsLogin)
+
+		usersCtl := controller.NewUsersController(database, store, sessionName)
+		router.GET("/api/users/list", usersCtl.GetList)
+		router.OPTIONS("/api/users/list", usersCtl.OptionsList)
+	}
 
 	// public routes
 	router.GET("/", getMain)

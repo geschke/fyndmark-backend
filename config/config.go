@@ -24,6 +24,23 @@ type ServerConfig struct {
 	Listen string `mapstructure:"listen"`
 }
 
+type AuthConfig struct {
+	Enabled bool `mapstructure:"enabled"`
+
+	// SessionKey is used to authenticate and optionally encrypt the session cookie.
+	// Must be set when Enabled=true.
+	SessionKey string `mapstructure:"session_key"`
+
+	// SessionName is the cookie name. If empty, a default is used.
+	SessionName string `mapstructure:"session_name"`
+
+	// Cookie settings
+	CookieSecure       bool     `mapstructure:"cookie_secure"`
+	CookieSameSite     string   `mapstructure:"cookie_samesite"` // lax|strict|none
+	CookieMaxAgeDays   int      `mapstructure:"cookie_max_age_days"`
+	CORSAllowedOrigins []string `mapstructure:"cors_allowed_origins"`
+}
+
 // SQLiteConfig holds settings for the SQLite database file.
 type SQLiteConfig struct {
 	Path string `mapstructure:"path"`
@@ -127,6 +144,7 @@ type FormConfig struct {
 // AppConfig is the main configuration struct for the entire application.
 type AppConfig struct {
 	Server ServerConfig `mapstructure:"server"`
+	Auth   AuthConfig   `mapstructure:"auth"`
 	SMTP   SMTPConfig   `mapstructure:"smtp"`
 	//CORS   CORSConfig            `mapstructure:"cors"` // maybe later
 	Forms map[string]FormConfig `mapstructure:"forms"`
@@ -272,6 +290,22 @@ func readAndSetConfig() error {
 			if strings.TrimSpace(formCfg.Captcha.SecretKey) == "" {
 				return exitOnErr(fmt.Errorf("forms.%s.captcha.secret_key must be set", formID))
 			}
+		}
+	}
+
+	if Cfg.Auth.Enabled {
+		if strings.TrimSpace(Cfg.Auth.SessionKey) == "" {
+			return exitOnErr(errors.New("auth.session_key must be set when auth.enabled=true"))
+		}
+		if len(Cfg.Auth.CORSAllowedOrigins) == 0 {
+			return exitOnErr(errors.New("auth.cors_allowed_origins must be set when auth.enabled=true"))
+		}
+		if Cfg.Auth.CookieMaxAgeDays == 0 {
+			Cfg.Auth.CookieMaxAgeDays = 30
+		}
+		// Normalize SameSite
+		if strings.TrimSpace(Cfg.Auth.CookieSameSite) == "" {
+			Cfg.Auth.CookieSameSite = "lax"
 		}
 	}
 
