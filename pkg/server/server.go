@@ -42,10 +42,30 @@ func Start(database *db.DB) error {
 		auth := controller.NewAuthController(database, store, sessionName)
 		router.POST("/api/auth/login", auth.PostLogin)
 		router.OPTIONS("/api/auth/login", auth.OptionsLogin)
+		router.POST("/api/auth/logout", auth.PostLogout)
+		router.OPTIONS("/api/auth/logout", auth.OptionsLogout)
 
 		usersCtl := controller.NewUsersController(database, store, sessionName)
 		router.GET("/api/users/list", usersCtl.GetList)
-		router.OPTIONS("/api/users/list", usersCtl.OptionsList)
+		router.OPTIONS("/api/users/list", usersCtl.Options)
+		router.POST("/api/users/add", usersCtl.PostAdd)
+		router.OPTIONS("/api/users/add", usersCtl.Options)
+		router.GET("/api/users/:id", usersCtl.GetByID)
+		router.OPTIONS("/api/users/:id", usersCtl.Options)
+		router.POST("/api/users/update/:id", usersCtl.PostUpdate)
+		router.OPTIONS("/api/users/update/:id", usersCtl.Options)
+		router.POST("/api/users/update-password/:id", usersCtl.PostUpdatePassword)
+		router.OPTIONS("/api/users/update-password/:id", usersCtl.Options)
+		router.POST("/api/users/delete/:id", usersCtl.PostDelete)
+		router.OPTIONS("/api/users/delete/:id", usersCtl.Options)
+
+		commentsAdminCtl := controller.NewCommentsAdminController(database, store, sessionName, worker)
+		router.GET("/api/comments/list", commentsAdminCtl.GetList)
+		router.OPTIONS("/api/comments/list", commentsAdminCtl.Options)
+		router.POST("/api/comments/approve", commentsAdminCtl.PostApprove)
+		router.OPTIONS("/api/comments/approve", commentsAdminCtl.Options)
+		router.POST("/api/comments/reject", commentsAdminCtl.PostReject)
+		router.OPTIONS("/api/comments/reject", commentsAdminCtl.Options)
 	}
 
 	// public routes

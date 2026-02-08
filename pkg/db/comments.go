@@ -3,23 +3,65 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 )
 
 type Comment struct {
-	ID        string
-	SiteID    string
-	EntryID   sql.NullString
-	PostPath  string
-	ParentID  sql.NullString
-	Status    string
-	Author    string
-	Email     string
-	AuthorUrl sql.NullString
-	Body      string
-	CreatedAt int64
+	ID         string         `json:"ID"`
+	SiteID     string         `json:"SiteID"`
+	EntryID    sql.NullString `json:"EntryID"`
+	PostPath   string         `json:"PostPath"`
+	ParentID   sql.NullString `json:"ParentID"`
+	Status     string         `json:"Status"`
+	Author     string         `json:"Author"`
+	Email      string         `json:"Email"`
+	AuthorUrl  sql.NullString `json:"AuthorUrl"`
+	Body       string         `json:"Body"`
+	CreatedAt  int64          `json:"CreatedAt"`
+	ApprovedAt int64          `json:"ApprovedAt"`
+	RejectedAt int64          `json:"RejectedAt"`
+}
+
+func (c Comment) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		ID         string `json:"ID"`
+		SiteID     string `json:"SiteID"`
+		EntryID    string `json:"EntryID"`
+		PostPath   string `json:"PostPath"`
+		ParentID   string `json:"ParentID"`
+		Status     string `json:"Status"`
+		Author     string `json:"Author"`
+		Email      string `json:"Email"`
+		AuthorUrl  string `json:"AuthorUrl"`
+		Body       string `json:"Body"`
+		CreatedAt  int64  `json:"CreatedAt"`
+		ApprovedAt int64  `json:"ApprovedAt"`
+		RejectedAt int64  `json:"RejectedAt"`
+	}{
+		ID:         c.ID,
+		SiteID:     c.SiteID,
+		EntryID:    nullStringToString(c.EntryID),
+		PostPath:   c.PostPath,
+		ParentID:   nullStringToString(c.ParentID),
+		Status:     c.Status,
+		Author:     c.Author,
+		Email:      c.Email,
+		AuthorUrl:  nullStringToString(c.AuthorUrl),
+		Body:       c.Body,
+		CreatedAt:  c.CreatedAt,
+		ApprovedAt: c.ApprovedAt,
+		RejectedAt: c.RejectedAt,
+	})
+}
+
+func nullStringToString(ns sql.NullString) string {
+	if ns.Valid {
+		return ns.String
+	}
+	return ""
 }
 
 func (c Comment) AuthorURLString() string {
@@ -138,7 +180,7 @@ func (d *DB) ListApprovedComments(ctx context.Context, siteID string) ([]Comment
 	}
 
 	rows, err := d.SQL.QueryContext(ctx, `
-SELECT id, site_id, entry_id, post_path, parent_id, status, author, email, author_url, body, created_at
+SELECT id, site_id, entry_id, post_path, parent_id, status, author, email, author_url, body, created_at, COALESCE(approved_at, 0), COALESCE(rejected_at, 0)
   FROM comments
  WHERE site_id = ?
    AND status = 'approved'
@@ -164,6 +206,8 @@ SELECT id, site_id, entry_id, post_path, parent_id, status, author, email, autho
 			&c.AuthorUrl,
 			&c.Body,
 			&c.CreatedAt,
+			&c.ApprovedAt,
+			&c.RejectedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan approved comment: %w", err)
 		}
@@ -215,4 +259,133 @@ SELECT 1
 	}
 
 	return true, nil
+}
+
+type CommentListFilter struct {
+	SiteID string
+	// pending|approved|rejected|all
+	Status string
+	Limit  int
+	Offset int
+}
+
+func normalizeCommentFilter(f CommentListFilter) (CommentListFilter, error) {
+	f.SiteID = strings.TrimSpace(f.SiteID)
+	f.Status = strings.ToLower(strings.TrimSpace(f.Status))
+	if f.SiteID == "" {
+		return f, fmt.Errorf("siteID is required")
+	}
+	if f.Status == "" {
+		f.Status = "pending"
+	}
+	switch f.Status {
+	case "pending", "approved", "rejected", "all":
+	default:
+		return f, fmt.Errorf("invalid status %q", f.Status)
+	}
+	if f.Limit < 0 {
+		return f, fmt.Errorf("limit must be >= 0")
+	}
+	if f.Offset < 0 {
+		return f, fmt.Errorf("offset must be >= 0")
+	}
+	return f, nil
+}
+
+func (d *DB) CountComments(ctx context.Context, f CommentListFilter) (int64, error) {
+	if d == nil || d.SQL == nil {
+		return 0, fmt.Errorf("db not initialized")
+	}
+
+	f, err := normalizeCommentFilter(f)
+	if err != nil {
+		return 0, err
+	}
+
+	query := `
+SELECT COUNT(1)
+  FROM comments
+ WHERE site_id = ?
+`
+	args := []any{f.SiteID}
+	if f.Status != "all" {
+		query += "   AND status = ?\n"
+		args = append(args, f.Status)
+	}
+
+	var count int64
+	if err := d.SQL.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count comments: %w", err)
+	}
+	return count, nil
+}
+
+func (d *DB) ListComments(ctx context.Context, f CommentListFilter) ([]Comment, error) {
+	if d == nil || d.SQL == nil {
+		return nil, fmt.Errorf("db not initialized")
+	}
+
+	f, err := normalizeCommentFilter(f)
+	if err != nil {
+		return nil, err
+	}
+
+	query := `
+SELECT id, site_id, entry_id, post_path, parent_id, status, author, email, author_url, body, created_at, COALESCE(approved_at, 0), COALESCE(rejected_at, 0)
+  FROM comments
+ WHERE site_id = ?
+`
+	args := []any{f.SiteID}
+	if f.Status != "all" {
+		query += "   AND status = ?\n"
+		args = append(args, f.Status)
+	}
+	query += " ORDER BY created_at DESC, id DESC\n"
+
+	if f.Limit > 0 {
+		query += " LIMIT ?\n"
+		args = append(args, f.Limit)
+		if f.Offset > 0 {
+			query += " OFFSET ?\n"
+			args = append(args, f.Offset)
+		}
+	} else if f.Offset > 0 {
+		// SQLite needs LIMIT when OFFSET is used.
+		query += " LIMIT -1 OFFSET ?\n"
+		args = append(args, f.Offset)
+	}
+
+	rows, err := d.SQL.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list comments: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []Comment
+	for rows.Next() {
+		var c Comment
+		if err := rows.Scan(
+			&c.ID,
+			&c.SiteID,
+			&c.EntryID,
+			&c.PostPath,
+			&c.ParentID,
+			&c.Status,
+			&c.Author,
+			&c.Email,
+			&c.AuthorUrl,
+			&c.Body,
+			&c.CreatedAt,
+			&c.ApprovedAt,
+			&c.RejectedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan comment: %w", err)
+		}
+		out = append(out, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate comments: %w", err)
+	}
+
+	return out, nil
 }

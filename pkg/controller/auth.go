@@ -43,6 +43,13 @@ func (ct AuthController) OptionsLogin(c *gin.Context) {
 	}
 }
 
+func (ct AuthController) OptionsLogout(c *gin.Context) {
+	// Allow preflight for browser-based clients.
+	if !cors.ApplyCORS(c, config.Cfg.Auth.CORSAllowedOrigins) {
+		return
+	}
+}
+
 func (ct AuthController) PostLogin(c *gin.Context) {
 	if !cors.ApplyCORS(c, config.Cfg.Auth.CORSAllowedOrigins) {
 		return
@@ -130,6 +137,42 @@ func (ct AuthController) PostLogin(c *gin.Context) {
 		"lastname":  u.LastName,
 		"session":   "cookie",
 	})
+}
+
+func (ct AuthController) PostLogout(c *gin.Context) {
+	if !cors.ApplyCORS(c, config.Cfg.Auth.CORSAllowedOrigins) {
+		return
+	}
+
+	if ct.Store == nil || strings.TrimSpace(ct.SessionName) == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "AUTH_NOT_CONFIGURED"})
+		return
+	}
+
+	sess, _ := ct.Store.Get(c.Request, ct.SessionName)
+	if sess == nil {
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": "LOGGED_OUT"})
+		return
+	}
+
+	for k := range sess.Values {
+		delete(sess.Values, k)
+	}
+
+	sess.Options = &sessions.Options{
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   config.Cfg.Auth.CookieSecure,
+		SameSite: parseSameSite(config.Cfg.Auth.CookieSameSite),
+	}
+
+	if err := sess.Save(c.Request, c.Writer); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "SESSION_SAVE_FAILED"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "LOGGED_OUT"})
 }
 
 func parseSameSite(v string) http.SameSite {

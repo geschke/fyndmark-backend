@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -19,12 +20,29 @@ type Argon2idParams struct {
 	KeyLen      uint32
 }
 
+const MinPasswordLength = 6
+
+var (
+	ErrPasswordRequired = errors.New("password is required")
+	ErrPasswordTooShort = errors.New("password is too short")
+)
+
 var DefaultArgon2idParams = Argon2idParams{
 	Memory:      64 * 1024,
 	Iterations:  3,
 	Parallelism: 2,
 	SaltLen:     16,
 	KeyLen:      32,
+}
+
+func ValidatePassword(password string) error {
+	if strings.TrimSpace(password) == "" {
+		return ErrPasswordRequired
+	}
+	if len(password) < MinPasswordLength {
+		return ErrPasswordTooShort
+	}
+	return nil
 }
 
 // HashPassword returns a PHC-encoded Argon2id hash string.
