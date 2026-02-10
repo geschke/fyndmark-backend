@@ -264,3 +264,140 @@ SELECT id, firstname, lastname, email, date_created, date_updated
 
 	return out, nil
 }
+
+func (d *DB) GetUserIDByEmail(ctx context.Context, email string) (int64, bool, error) {
+	if d == nil || d.SQL == nil {
+		return 0, false, fmt.Errorf("db not initialized")
+	}
+
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return 0, false, fmt.Errorf("email is required")
+	}
+
+	var id int64
+	err := d.SQL.QueryRowContext(ctx, `
+SELECT id
+  FROM users
+ WHERE email = ?
+ LIMIT 1;
+`, email).Scan(&id)
+	if err == sql.ErrNoRows {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, fmt.Errorf("get user id by email: %w", err)
+	}
+	return id, true, nil
+}
+
+func (d *DB) UserExistsByID(ctx context.Context, userID int64) (bool, error) {
+	if d == nil || d.SQL == nil {
+		return false, fmt.Errorf("db not initialized")
+	}
+	if userID <= 0 {
+		return false, fmt.Errorf("userID must be > 0")
+	}
+
+	var one int
+	err := d.SQL.QueryRowContext(ctx, `
+SELECT 1
+  FROM users
+ WHERE id = ?
+ LIMIT 1;
+`, userID).Scan(&one)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("user exists by id query: %w", err)
+	}
+	return true, nil
+}
+
+func (d *DB) GrantUserSite(ctx context.Context, userID int64, siteID string) (bool, error) {
+	if d == nil || d.SQL == nil {
+		return false, fmt.Errorf("db not initialized")
+	}
+	if userID <= 0 {
+		return false, fmt.Errorf("userID must be > 0")
+	}
+	siteID = strings.TrimSpace(siteID)
+	if siteID == "" {
+		return false, fmt.Errorf("siteID is required")
+	}
+
+	res, err := d.SQL.ExecContext(ctx, `
+INSERT INTO user_sites (user_id, site_id)
+VALUES (?, ?)
+ON CONFLICT(user_id, site_id) DO NOTHING;
+`, userID, siteID)
+	if err != nil {
+		return false, fmt.Errorf("grant user site: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("grant user site rows affected: %w", err)
+	}
+	return affected > 0, nil
+}
+
+func (d *DB) RevokeUserSite(ctx context.Context, userID int64, siteID string) (bool, error) {
+	if d == nil || d.SQL == nil {
+		return false, fmt.Errorf("db not initialized")
+	}
+	if userID <= 0 {
+		return false, fmt.Errorf("userID must be > 0")
+	}
+	siteID = strings.TrimSpace(siteID)
+	if siteID == "" {
+		return false, fmt.Errorf("siteID is required")
+	}
+
+	res, err := d.SQL.ExecContext(ctx, `
+DELETE FROM user_sites
+ WHERE user_id = ?
+   AND site_id = ?;
+`, userID, siteID)
+	if err != nil {
+		return false, fmt.Errorf("revoke user site: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("revoke user site rows affected: %w", err)
+	}
+	return affected > 0, nil
+}
+
+func (d *DB) ListUserSites(ctx context.Context, userID int64) ([]string, error) {
+	if d == nil || d.SQL == nil {
+		return nil, fmt.Errorf("db not initialized")
+	}
+	if userID <= 0 {
+		return nil, fmt.Errorf("userID must be > 0")
+	}
+
+	rows, err := d.SQL.QueryContext(ctx, `
+SELECT site_id
+  FROM user_sites
+ WHERE user_id = ?
+ ORDER BY site_id ASC;
+`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list user sites: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make([]string, 0)
+	for rows.Next() {
+		var siteID string
+		if err := rows.Scan(&siteID); err != nil {
+			return nil, fmt.Errorf("scan user site: %w", err)
+		}
+		out = append(out, siteID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate user sites: %w", err)
+	}
+	return out, nil
+}

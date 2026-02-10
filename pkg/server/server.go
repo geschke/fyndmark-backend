@@ -59,6 +59,10 @@ func Start(database *db.DB) error {
 		router.POST("/api/users/delete/:id", usersCtl.PostDelete)
 		router.OPTIONS("/api/users/delete/:id", usersCtl.Options)
 
+		sitesCtl := controller.NewSitesController(database, store, sessionName)
+		router.GET("/api/sites", sitesCtl.GetList)
+		router.OPTIONS("/api/sites", sitesCtl.Options)
+
 		commentsAdminCtl := controller.NewCommentsAdminController(database, store, sessionName, worker)
 		router.GET("/api/comments/list", commentsAdminCtl.GetList)
 		router.OPTIONS("/api/comments/list", commentsAdminCtl.Options)

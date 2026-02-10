@@ -65,20 +65,22 @@ func (d *DB) Migrate() error {
 		`
 CREATE TABLE IF NOT EXISTS comments (
   id            TEXT PRIMARY KEY,
-  site_id       TEXT NOT NULL,
+  site_id       INTEGER NOT NULL,
   entry_id      TEXT,
   post_path     TEXT NOT NULL,
   parent_id     TEXT,
   status        TEXT NOT NULL,
   author        TEXT NOT NULL,
   email         TEXT NOT NULL,
-	author_url    TEXT,
+  author_url    TEXT,
   body          TEXT NOT NULL,
   created_at    INTEGER NOT NULL,
   approved_at   INTEGER,
   rejected_at   INTEGER,
-
-  FOREIGN KEY(parent_id) REFERENCES comments(id) ON DELETE CASCADE
+  
+	FOREIGN KEY(site_id) REFERENCES sites(id) ON DELETE CASCADE,
+	FOREIGN KEY(parent_id) REFERENCES comments(id) ON DELETE CASCADE
+	
 );
 
 `,
@@ -88,7 +90,7 @@ CREATE TABLE IF NOT EXISTS comments (
 		`
 CREATE TABLE IF NOT EXISTS pipeline_runs (
   id                  INTEGER PRIMARY KEY,
-  site_id             TEXT NOT NULL,
+  site_id             INTEGER NOT NULL,
   trigger_comment_id  TEXT,
 
   state               TEXT NOT NULL,        -- queued|running|success|failed
@@ -115,6 +117,27 @@ CREATE TABLE IF NOT EXISTS users (
 `,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email    ON users(email);`,
 		`CREATE INDEX        IF NOT EXISTS idx_users_updated  ON users(date_updated);`,
+		`
+CREATE TABLE IF NOT EXISTS sites (
+  id            INTEGER PRIMARY KEY,
+	site_key			TEXT NOT NULL,
+  name          TEXT,
+  date_created  INTEGER NOT NULL,
+  date_updated  INTEGER NOT NULL
+);
+`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_sites_key ON sites(site_key);`,
+		`CREATE INDEX IF NOT EXISTS idx_sites_updated ON sites(date_updated);`,
+		`
+CREATE TABLE IF NOT EXISTS user_sites (
+  user_id INTEGER NOT NULL,
+  site_id INTEGER NOT NULL,
+  PRIMARY KEY(user_id, site_id),
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY(site_id) REFERENCES sites(id) ON DELETE CASCADE
+);
+`,
+		`CREATE INDEX IF NOT EXISTS idx_user_sites_site ON user_sites(site_id);`,
 	}
 
 	for _, s := range stmts {

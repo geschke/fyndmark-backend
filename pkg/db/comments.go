@@ -25,6 +25,16 @@ type Comment struct {
 	RejectedAt int64          `json:"RejectedAt"`
 }
 
+type CommentListFilter struct {
+	SiteID string
+	// AllowedSiteIDs must contain all sites the current user may access.
+	AllowedSiteIDs []string
+	// pending|approved|rejected|all
+	Status string
+	Limit  int
+	Offset int
+}
+
 func (c Comment) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		ID         string `json:"ID"`
@@ -261,19 +271,20 @@ SELECT 1
 	return true, nil
 }
 
-type CommentListFilter struct {
-	SiteID string
-	// pending|approved|rejected|all
-	Status string
-	Limit  int
-	Offset int
-}
-
 func normalizeCommentFilter(f CommentListFilter) (CommentListFilter, error) {
 	f.SiteID = strings.TrimSpace(f.SiteID)
 	f.Status = strings.ToLower(strings.TrimSpace(f.Status))
-	if f.SiteID == "" {
-		return f, fmt.Errorf("siteID is required")
+	allowed := make([]string, 0, len(f.AllowedSiteIDs))
+	for _, s := range f.AllowedSiteIDs {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		allowed = append(allowed, s)
+	}
+	f.AllowedSiteIDs = allowed
+	if len(f.AllowedSiteIDs) == 0 {
+		return f, fmt.Errorf("allowedSiteIDs is required")
 	}
 	if f.Status == "" {
 		f.Status = "pending"
@@ -302,12 +313,21 @@ func (d *DB) CountComments(ctx context.Context, f CommentListFilter) (int64, err
 		return 0, err
 	}
 
+	inPlaceholders := strings.Repeat("?,", len(f.AllowedSiteIDs))
+	inPlaceholders = strings.TrimSuffix(inPlaceholders, ",")
 	query := `
 SELECT COUNT(1)
   FROM comments
- WHERE site_id = ?
+ WHERE site_id IN (` + inPlaceholders + `)
 `
-	args := []any{f.SiteID}
+	args := make([]any, 0, len(f.AllowedSiteIDs)+2)
+	for _, siteID := range f.AllowedSiteIDs {
+		args = append(args, siteID)
+	}
+	if f.SiteID != "" {
+		query += "   AND site_id = ?\n"
+		args = append(args, f.SiteID)
+	}
 	if f.Status != "all" {
 		query += "   AND status = ?\n"
 		args = append(args, f.Status)
@@ -330,12 +350,21 @@ func (d *DB) ListComments(ctx context.Context, f CommentListFilter) ([]Comment, 
 		return nil, err
 	}
 
+	inPlaceholders := strings.Repeat("?,", len(f.AllowedSiteIDs))
+	inPlaceholders = strings.TrimSuffix(inPlaceholders, ",")
 	query := `
 SELECT id, site_id, entry_id, post_path, parent_id, status, author, email, author_url, body, created_at, COALESCE(approved_at, 0), COALESCE(rejected_at, 0)
   FROM comments
- WHERE site_id = ?
+ WHERE site_id IN (` + inPlaceholders + `)
 `
-	args := []any{f.SiteID}
+	args := make([]any, 0, len(f.AllowedSiteIDs)+4)
+	for _, siteID := range f.AllowedSiteIDs {
+		args = append(args, siteID)
+	}
+	if f.SiteID != "" {
+		query += "   AND site_id = ?\n"
+		args = append(args, f.SiteID)
+	}
 	if f.Status != "all" {
 		query += "   AND status = ?\n"
 		args = append(args, f.Status)
