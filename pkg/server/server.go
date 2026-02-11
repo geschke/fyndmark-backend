@@ -75,13 +75,10 @@ func Start(database *db.DB) error {
 	// public routes
 	router.GET("/", getMain)
 	router.POST("/api/feedbackmail/:formid", feedback.PostMail)
-	router.GET("/api/comments/:siteid/decision", comments.GetDecision)
+	router.GET("/api/comments/:sitekey/decision", comments.GetDecision)
 
-	router.POST("/api/comments/:siteid/", comments.PostComment)
-	router.OPTIONS("/api/comments/:siteid/", comments.OptionsComment)
-
-	router.POST("/api/comments/:siteid", comments.PostComment)
-	router.OPTIONS("/api/comments/:siteid", comments.OptionsComment)
+	router.POST("/api/comments/:sitekey/", comments.PostComment)
+	router.OPTIONS("/api/comments/:sitekey/", comments.OptionsComment)
 
 	// Basic health check
 	router.GET("/health", func(c *gin.Context) {

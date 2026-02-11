@@ -37,7 +37,7 @@ func (d *DB) UpsertSite(ctx context.Context, site Site) error {
 	_, err := d.SQL.ExecContext(ctx, `
 INSERT INTO sites (site_key, name, date_created, date_updated)
 VALUES (?, ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET
+ON CONFLICT(site_key) DO UPDATE SET
   name = excluded.name,
   date_updated = excluded.date_updated;
 `, siteKey, name, created, now)
@@ -62,27 +62,79 @@ func (d *DB) SyncSitesFromConfig(ctx context.Context, cfg map[string]config.Comm
 	return nil
 }
 
-func (d *DB) SiteExists(ctx context.Context, siteKey string) (bool, error) {
+func (d *DB) GetSiteIDByKey(ctx context.Context, siteKey string) (int64, bool, error) {
 	if d == nil || d.SQL == nil {
-		return false, fmt.Errorf("db not initialized")
+		return 0, false, fmt.Errorf("db not initialized")
 	}
 	siteKey = strings.TrimSpace(siteKey)
 	if siteKey == "" {
-		return false, fmt.Errorf("siteID is required")
+		return 0, false, fmt.Errorf("site key is required")
 	}
 
+	var siteID int64
+	err := d.SQL.QueryRowContext(ctx, `
+SELECT id
+  FROM sites
+ WHERE site_key = ?
+ LIMIT 1;
+`, siteKey).Scan(&siteID)
+	if err == sql.ErrNoRows {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, fmt.Errorf("get site id by key: %w", err)
+	}
+	return siteID, true, nil
+}
+
+func (d *DB) GetSiteByID(ctx context.Context, siteID int64) (Site, bool, error) {
+	if d == nil || d.SQL == nil {
+		return Site{}, false, fmt.Errorf("db not initialized")
+	}
+	if siteID <= 0 {
+		return Site{}, false, fmt.Errorf("site id must be > 0")
+	}
+
+	var s Site
+	err := d.SQL.QueryRowContext(ctx, `
+SELECT id, site_key, name, date_created, date_updated
+  FROM sites
+ WHERE id = ?
+ LIMIT 1;
+`, siteID).Scan(&s.ID, &s.SiteKey, &s.Name, &s.DateCreated, &s.DateUpdated)
+	if err == sql.ErrNoRows {
+		return Site{}, false, nil
+	}
+	if err != nil {
+		return Site{}, false, fmt.Errorf("get site by id: %w", err)
+	}
+	return s, true, nil
+}
+
+func (d *DB) SiteExists(ctx context.Context, siteKey string) (bool, error) {
+	_, found, err := d.GetSiteIDByKey(ctx, siteKey)
+	return found, err
+}
+
+func (d *DB) SiteExistsByID(ctx context.Context, siteID int64) (bool, error) {
+	if d == nil || d.SQL == nil {
+		return false, fmt.Errorf("db not initialized")
+	}
+	if siteID <= 0 {
+		return false, fmt.Errorf("site id must be > 0")
+	}
 	var one int
 	err := d.SQL.QueryRowContext(ctx, `
 SELECT 1
   FROM sites
- WHERE site_key = ?
+ WHERE id = ?
  LIMIT 1;
-`, siteKey).Scan(&one)
+`, siteID).Scan(&one)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return false, nil
-		}
-		return false, fmt.Errorf("site exists query: %w", err)
+		return false, fmt.Errorf("site exists by id query: %w", err)
 	}
 	return true, nil
 }
@@ -121,7 +173,7 @@ SELECT s.id, s.site_key, s.name, s.date_created, s.date_updated
 	return out, nil
 }
 
-func (d *DB) ListAllowedSiteIDsByUserID(ctx context.Context, userID int64) ([]string, error) {
+func (d *DB) ListAllowedSiteIDsByUserID(ctx context.Context, userID int64) ([]int64, error) {
 	if d == nil || d.SQL == nil {
 		return nil, fmt.Errorf("db not initialized")
 	}
@@ -130,23 +182,23 @@ func (d *DB) ListAllowedSiteIDsByUserID(ctx context.Context, userID int64) ([]st
 	}
 
 	rows, err := d.SQL.QueryContext(ctx, `
-SELECT s.site_key
-  FROM user_sites us, sites s
- WHERE user_id = ? AND us.site_id=s.id
- ORDER BY s.site_key ASC;
+SELECT site_id
+  FROM user_sites
+ WHERE user_id = ?
+ ORDER BY site_id ASC;
 `, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list allowed site ids: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	out := make([]string, 0)
+	out := make([]int64, 0)
 	for rows.Next() {
-		var siteKey string
-		if err := rows.Scan(&siteKey); err != nil {
+		var siteID int64
+		if err := rows.Scan(&siteID); err != nil {
 			return nil, fmt.Errorf("scan allowed site id: %w", err)
 		}
-		out = append(out, siteKey)
+		out = append(out, siteID)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate allowed site ids: %w", err)
@@ -161,10 +213,9 @@ func (d *DB) UserHasSiteAccess(ctx context.Context, userID int64, siteID int64) 
 	if userID <= 0 {
 		return false, fmt.Errorf("userID must be > 0")
 	}
-	//siteID = strings.TrimSpace(siteID)
-	//if siteID == "" {
-	//	return false, fmt.Errorf("siteID is required")
-	//}
+	if siteID <= 0 {
+		return false, fmt.Errorf("siteID must be > 0")
+	}
 
 	var one int
 	err := d.SQL.QueryRowContext(ctx, `
@@ -183,16 +234,15 @@ SELECT 1
 	return true, nil
 }
 
-func (d *DB) AssignUserSite(ctx context.Context, userID int64, siteID string) error {
+func (d *DB) AssignUserSite(ctx context.Context, userID int64, siteID int64) error {
 	if d == nil || d.SQL == nil {
 		return fmt.Errorf("db not initialized")
 	}
 	if userID <= 0 {
 		return fmt.Errorf("userID must be > 0")
 	}
-	siteID = strings.TrimSpace(siteID)
-	if siteID == "" {
-		return fmt.Errorf("siteID is required")
+	if siteID <= 0 {
+		return fmt.Errorf("siteID must be > 0")
 	}
 
 	_, err := d.SQL.ExecContext(ctx, `
@@ -206,16 +256,15 @@ ON CONFLICT(user_id, site_id) DO NOTHING;
 	return nil
 }
 
-func (d *DB) RemoveUserSite(ctx context.Context, userID int64, siteID string) (bool, error) {
+func (d *DB) RemoveUserSite(ctx context.Context, userID int64, siteID int64) (bool, error) {
 	if d == nil || d.SQL == nil {
 		return false, fmt.Errorf("db not initialized")
 	}
 	if userID <= 0 {
 		return false, fmt.Errorf("userID must be > 0")
 	}
-	siteID = strings.TrimSpace(siteID)
-	if siteID == "" {
-		return false, fmt.Errorf("siteID is required")
+	if siteID <= 0 {
+		return false, fmt.Errorf("siteID must be > 0")
 	}
 
 	res, err := d.SQL.ExecContext(ctx, `

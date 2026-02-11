@@ -315,16 +315,15 @@ SELECT 1
 	return true, nil
 }
 
-func (d *DB) GrantUserSite(ctx context.Context, userID int64, siteID string) (bool, error) {
+func (d *DB) GrantUserSite(ctx context.Context, userID int64, siteID int64) (bool, error) {
 	if d == nil || d.SQL == nil {
 		return false, fmt.Errorf("db not initialized")
 	}
 	if userID <= 0 {
 		return false, fmt.Errorf("userID must be > 0")
 	}
-	siteID = strings.TrimSpace(siteID)
-	if siteID == "" {
-		return false, fmt.Errorf("siteID is required")
+	if siteID <= 0 {
+		return false, fmt.Errorf("siteID must be > 0")
 	}
 
 	res, err := d.SQL.ExecContext(ctx, `
@@ -342,16 +341,15 @@ ON CONFLICT(user_id, site_id) DO NOTHING;
 	return affected > 0, nil
 }
 
-func (d *DB) RevokeUserSite(ctx context.Context, userID int64, siteID string) (bool, error) {
+func (d *DB) RevokeUserSite(ctx context.Context, userID int64, siteID int64) (bool, error) {
 	if d == nil || d.SQL == nil {
 		return false, fmt.Errorf("db not initialized")
 	}
 	if userID <= 0 {
 		return false, fmt.Errorf("userID must be > 0")
 	}
-	siteID = strings.TrimSpace(siteID)
-	if siteID == "" {
-		return false, fmt.Errorf("siteID is required")
+	if siteID <= 0 {
+		return false, fmt.Errorf("siteID must be > 0")
 	}
 
 	res, err := d.SQL.ExecContext(ctx, `
@@ -367,37 +365,4 @@ DELETE FROM user_sites
 		return false, fmt.Errorf("revoke user site rows affected: %w", err)
 	}
 	return affected > 0, nil
-}
-
-func (d *DB) ListUserSites(ctx context.Context, userID int64) ([]string, error) {
-	if d == nil || d.SQL == nil {
-		return nil, fmt.Errorf("db not initialized")
-	}
-	if userID <= 0 {
-		return nil, fmt.Errorf("userID must be > 0")
-	}
-
-	rows, err := d.SQL.QueryContext(ctx, `
-SELECT site_id
-  FROM user_sites
- WHERE user_id = ?
- ORDER BY site_id ASC;
-`, userID)
-	if err != nil {
-		return nil, fmt.Errorf("list user sites: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	out := make([]string, 0)
-	for rows.Next() {
-		var siteID string
-		if err := rows.Scan(&siteID); err != nil {
-			return nil, fmt.Errorf("scan user site: %w", err)
-		}
-		out = append(out, siteID)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate user sites: %w", err)
-	}
-	return out, nil
 }

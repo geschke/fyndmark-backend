@@ -110,8 +110,8 @@ func (w *Worker) runOne(req RunRequest) {
 	}
 
 	runner := Runner{
-		DB:     w.db,
-		SiteID: req.SiteID,
+		DB:      w.db,
+		SiteKey: req.SiteID,
 	}
 
 	if err := runner.RunExisting(context.Background(), req.RunID); err != nil {

@@ -17,8 +17,8 @@ import (
 )
 
 type Generator struct {
-	DB     *db.DB
-	SiteID string
+	DB      *db.DB
+	SiteKey string
 }
 
 // Generate reads approved comments from SQLite and writes them as markdown
@@ -32,26 +32,34 @@ func (g *Generator) Generate(ctx context.Context) error {
 		return fmt.Errorf("generator: DB is nil")
 	}
 
-	siteID := strings.TrimSpace(g.SiteID)
-	if siteID == "" {
+	siteKey := strings.TrimSpace(g.SiteKey)
+	if siteKey == "" {
 		return fmt.Errorf("site_id is required (use --site-id)")
 	}
 
-	siteCfg, ok := config.Cfg.CommentSites[siteID]
+	siteCfg, ok := config.Cfg.CommentSites[siteKey]
 	if !ok {
-		return fmt.Errorf("unknown site_id %q (not found in comment_sites)", siteID)
+		return fmt.Errorf("unknown site_id %q (not found in comment_sites)", siteKey)
 	}
 
 	// Resolve repo working directory
-	workDir, _ := git.ResolveWorkdir(siteID)
+	workDir, _ := git.ResolveWorkdir(siteKey)
 
 	// Load timezone for markdown timestamps.
 	loc, err := resolveLocation(strings.TrimSpace(siteCfg.Timezone))
 	if err != nil {
-		return fmt.Errorf("invalid timezone for comment_sites.%s.timezone: %w", siteID, err)
+		return fmt.Errorf("invalid timezone for comment_sites.%s.timezone: %w", siteKey, err)
 	}
 
-	comments, err := g.DB.ListApprovedComments(ctx, siteID)
+	siteNumericID, found, err := g.DB.GetSiteIDByKey(ctx, siteKey)
+	if err != nil {
+		return fmt.Errorf("resolve site key %q: %w", siteKey, err)
+	}
+	if !found {
+		return fmt.Errorf("site key %q not found in sites table", siteKey)
+	}
+
+	comments, err := g.DB.ListApprovedComments(ctx, siteNumericID)
 	if err != nil {
 		return err
 	}

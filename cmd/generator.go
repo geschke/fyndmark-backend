@@ -10,11 +10,11 @@ import (
 )
 
 var (
-	siteID string
+	siteKey string
 )
 
 func init() {
-	generateCommentsCmd.Flags().StringVar(&siteID, "site-id", "", "Site ID from config.comment_sites (required)")
+	generateCommentsCmd.Flags().StringVar(&siteKey, "site-key", "", "Site Key from config.comment_sites (required)")
 	rootCmd.AddCommand(generateCommentsCmd)
 }
 
@@ -30,14 +30,14 @@ var generateCommentsCmd = &cobra.Command{
 		}
 		defer cleanup()
 
-		siteID = strings.TrimSpace(siteID)
-		if siteID == "" {
-			return fmt.Errorf("site_id is required (use --site-id)")
+		siteKey = strings.TrimSpace(siteKey)
+		if siteKey == "" {
+			return fmt.Errorf("site-key is required (use --site-key)")
 		}
 
 		g := generator.Generator{
-			DB:     database,
-			SiteID: siteID,
+			DB:      database,
+			SiteKey: siteKey,
 		}
 
 		return g.Generate(context.Background())

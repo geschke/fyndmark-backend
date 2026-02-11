@@ -17,7 +17,7 @@ func nowUnix() int64 {
 }
 
 // CreateRun inserts a new pipeline run with state=queued.
-func (d *DB) CreateRun(siteID, commentID string) (int64, error) {
+func (d *DB) CreateRun(siteID int64, commentID string) (int64, error) {
 	res, err := d.SQL.Exec(`
 INSERT INTO pipeline_runs (
   site_id, trigger_comment_id, state, created_at

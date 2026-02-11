@@ -10,11 +10,11 @@ import (
 )
 
 var (
-	runSiteID string
+	runSiteKey string
 )
 
 func init() {
-	pipelineRunCmd.Flags().StringVar(&runSiteID, "site-id", "", "Site ID from config.comment_sites (required)")
+	pipelineRunCmd.Flags().StringVar(&runSiteKey, "site-key", "", "Site Key from config.comment_sites (required)")
 	rootCmd.AddCommand(pipelineRunCmd)
 }
 
@@ -30,14 +30,14 @@ var pipelineRunCmd = &cobra.Command{
 		}
 		defer cleanup()
 
-		siteID = strings.TrimSpace(runSiteID)
-		if siteID == "" {
-			return fmt.Errorf("site_id is required (use --site-id)")
+		siteKey = strings.TrimSpace(runSiteKey)
+		if siteKey == "" {
+			return fmt.Errorf("site key is required (use --site-key)")
 		}
 
 		r := pipeline.Runner{
-			DB:     database,
-			SiteID: siteID,
+			DB:      database,
+			SiteKey: siteKey,
 		}
 
 		runID, err := r.Run(context.Background(), "")

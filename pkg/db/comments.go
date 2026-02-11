@@ -11,7 +11,7 @@ import (
 
 type Comment struct {
 	ID         string         `json:"ID"`
-	SiteID     string         `json:"SiteID"`
+	SiteID     int64          `json:"SiteID"`
 	EntryID    sql.NullString `json:"EntryID"`
 	PostPath   string         `json:"PostPath"`
 	ParentID   sql.NullString `json:"ParentID"`
@@ -26,9 +26,9 @@ type Comment struct {
 }
 
 type CommentListFilter struct {
-	SiteID string
+	SiteID int64
 	// AllowedSiteIDs must contain all sites the current user may access.
-	AllowedSiteIDs []string
+	AllowedSiteIDs []int64
 	// pending|approved|rejected|all
 	Status string
 	Limit  int
@@ -38,7 +38,7 @@ type CommentListFilter struct {
 func (c Comment) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		ID         string `json:"ID"`
-		SiteID     string `json:"SiteID"`
+		SiteID     int64  `json:"SiteID"`
 		EntryID    string `json:"EntryID"`
 		PostPath   string `json:"PostPath"`
 		ParentID   string `json:"ParentID"`
@@ -93,8 +93,10 @@ func (d *DB) InsertComment(ctx context.Context, c Comment) error {
 	if d == nil || d.SQL == nil {
 		return fmt.Errorf("db not initialized")
 	}
+	if c.SiteID <= 0 {
+		return fmt.Errorf("siteID must be > 0")
+	}
 
-	c.SiteID = strings.TrimSpace(c.SiteID)
 	c.PostPath = strings.TrimSpace(c.PostPath)
 	c.Author = strings.TrimSpace(c.Author)
 	c.AuthorUrl = normalizeNullString(c.AuthorUrl)
@@ -121,7 +123,7 @@ INSERT INTO comments (
 
 // ApproveComment sets a pending comment to approved (idempotent-ish).
 // Returns true if a row was updated, false if nothing changed (not found or already decided).
-func (d *DB) ApproveComment(ctx context.Context, siteID, commentID string) (bool, error) {
+func (d *DB) ApproveComment(ctx context.Context, siteID int64, commentID string) (bool, error) {
 	if d == nil || d.SQL == nil {
 		return false, fmt.Errorf("db not initialized")
 	}
@@ -150,7 +152,7 @@ UPDATE comments
 
 // RejectComment sets a pending comment to rejected (idempotent-ish).
 // Returns true if a row was updated, false if nothing changed (not found or already decided).
-func (d *DB) RejectComment(ctx context.Context, siteID, commentID string) (bool, error) {
+func (d *DB) RejectComment(ctx context.Context, siteID int64, commentID string) (bool, error) {
 	if d == nil || d.SQL == nil {
 		return false, fmt.Errorf("db not initialized")
 	}
@@ -179,14 +181,13 @@ UPDATE comments
 
 // ListApprovedComments returns all approved comments for a site, ordered deterministically.
 // Ordering: post_path ASC, created_at ASC, id ASC.
-func (d *DB) ListApprovedComments(ctx context.Context, siteID string) ([]Comment, error) {
+func (d *DB) ListApprovedComments(ctx context.Context, siteID int64) ([]Comment, error) {
 	if d == nil || d.SQL == nil {
 		return nil, fmt.Errorf("db not initialized")
 	}
 
-	siteID = strings.TrimSpace(siteID)
-	if siteID == "" {
-		return nil, fmt.Errorf("siteID is required")
+	if siteID <= 0 {
+		return nil, fmt.Errorf("siteID must be > 0")
 	}
 
 	rows, err := d.SQL.QueryContext(ctx, `
@@ -234,16 +235,15 @@ SELECT id, site_id, entry_id, post_path, parent_id, status, author, email, autho
 // ParentExists checks whether a parent comment exists for the given site and post path.
 // If requireApproved is true, the parent must have status = 'approved'.
 // Returns (true, nil) if a matching parent exists, (false, nil) if not found.
-func (d *DB) ParentExists(ctx context.Context, siteID, parentID, postPath string, requireApproved bool) (bool, error) {
+func (d *DB) ParentExists(ctx context.Context, siteID int64, parentID, postPath string, requireApproved bool) (bool, error) {
 	if d == nil || d.SQL == nil {
 		return false, fmt.Errorf("db not initialized")
 	}
 
-	siteID = strings.TrimSpace(siteID)
 	parentID = strings.TrimSpace(parentID)
 	postPath = strings.TrimSpace(postPath)
 
-	if siteID == "" || parentID == "" || postPath == "" {
+	if siteID <= 0 || parentID == "" || postPath == "" {
 		return false, fmt.Errorf("siteID, parentID and postPath are required")
 	}
 
@@ -272,12 +272,10 @@ SELECT 1
 }
 
 func normalizeCommentFilter(f CommentListFilter) (CommentListFilter, error) {
-	f.SiteID = strings.TrimSpace(f.SiteID)
 	f.Status = strings.ToLower(strings.TrimSpace(f.Status))
-	allowed := make([]string, 0, len(f.AllowedSiteIDs))
+	allowed := make([]int64, 0, len(f.AllowedSiteIDs))
 	for _, s := range f.AllowedSiteIDs {
-		s = strings.TrimSpace(s)
-		if s == "" {
+		if s <= 0 {
 			continue
 		}
 		allowed = append(allowed, s)
@@ -324,7 +322,7 @@ SELECT COUNT(1)
 	for _, siteID := range f.AllowedSiteIDs {
 		args = append(args, siteID)
 	}
-	if f.SiteID != "" {
+	if f.SiteID > 0 {
 		query += "   AND site_id = ?\n"
 		args = append(args, f.SiteID)
 	}
@@ -361,7 +359,7 @@ SELECT id, site_id, entry_id, post_path, parent_id, status, author, email, autho
 	for _, siteID := range f.AllowedSiteIDs {
 		args = append(args, siteID)
 	}
-	if f.SiteID != "" {
+	if f.SiteID > 0 {
 		query += "   AND site_id = ?\n"
 		args = append(args, f.SiteID)
 	}

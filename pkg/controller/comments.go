@@ -35,10 +35,6 @@ type PipelineEnqueuer interface {
 	EnqueueRun(runID int64, siteID, commentID string) error
 }
 
-func NewCommentsController(database *db.DB, enqueuer PipelineEnqueuer) *CommentsController {
-	return &CommentsController{DB: database, Enqueuer: enqueuer}
-}
-
 type CreateCommentRequest struct {
 	EntryID        string `json:"entry_id"`
 	PostPath       string `json:"post_path"`
@@ -51,14 +47,18 @@ type CreateCommentRequest struct {
 	CaptchaToken   string `json:"captcha_token"`
 }
 
-// POST /api/comments/:siteid/
-func (ct CommentsController) PostComment(c *gin.Context) {
-	siteID := c.Param("siteid")
-	log.Println("PostComment called for site:", siteID)
+func NewCommentsController(database *db.DB, enqueuer PipelineEnqueuer) *CommentsController {
+	return &CommentsController{DB: database, Enqueuer: enqueuer}
+}
 
-	siteCfg, ok := config.Cfg.CommentSites[siteID]
+// POST /api/comments/:sitekey/
+func (ct CommentsController) PostComment(c *gin.Context) {
+	siteKey := c.Param("sitekey")
+	log.Println("PostComment called for site:", siteKey)
+
+	siteCfg, ok := config.Cfg.CommentSites[siteKey]
 	if !ok {
-		log.Printf("Unknown site ID: %s", siteID)
+		log.Printf("Unknown site key: %s", siteKey)
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
 			"error":   "unknown_site",
@@ -88,7 +88,7 @@ func (ct CommentsController) PostComment(c *gin.Context) {
 	}
 	provider, err := captcha.ResolveProvider(siteCfg.Captcha)
 	if err != nil {
-		log.Printf("Captcha configuration error for site %s: %v", siteID, err)
+		log.Printf("Captcha configuration error for site %s: %v", siteKey, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   "captcha_verify_failed",
@@ -98,7 +98,7 @@ func (ct CommentsController) PostComment(c *gin.Context) {
 	if provider != nil {
 		okTS, tsErrors, err := provider.Validate(captchaToken, c.ClientIP())
 		if err != nil {
-			log.Printf("Captcha verification error for site %s: %v", siteID, err)
+			log.Printf("Captcha verification error for site %s: %v", siteKey, err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"success": false,
 				"error":   "captcha_verify_failed",
@@ -134,7 +134,7 @@ func (ct CommentsController) PostComment(c *gin.Context) {
 	if authorReport.Changed {
 		log.Printf(
 			"author sanitized (site=%s): removed_ctrl=%d removed_bad=%d",
-			siteID,
+			siteKey,
 			authorReport.RemovedControlChars,
 			authorReport.RemovedDisallowedChars,
 		)
@@ -153,7 +153,7 @@ func (ct CommentsController) PostComment(c *gin.Context) {
 	}
 
 	if urlReport.Changed {
-		log.Printf("author_url sanitized (site=%s): trimmed=%t", siteID, urlReport.Trimmed)
+		log.Printf("author_url sanitized (site=%s): trimmed=%t", siteKey, urlReport.Trimmed)
 	}
 
 	// Validate email strictly (plain addr-spec only)
@@ -175,7 +175,7 @@ func (ct CommentsController) PostComment(c *gin.Context) {
 	}
 
 	if emailReport.Changed {
-		log.Printf("email normalized (site=%s): trimmed=%t lower=%t", siteID, emailReport.Trimmed, emailReport.Lowercased)
+		log.Printf("email normalized (site=%s): trimmed=%t lower=%t", siteKey, emailReport.Trimmed, emailReport.Lowercased)
 	}
 
 	req.Body = strings.TrimSpace(req.Body)
@@ -235,12 +235,22 @@ func (ct CommentsController) PostComment(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "db_not_initialized"})
 		return
 	}
+	siteID, found, err := ct.DB.GetSiteIDByKey(context.Background(), siteKey)
+	if err != nil {
+		log.Printf("Resolve site key failed (site=%s): %v", siteKey, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "db_query_failed"})
+		return
+	}
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "error": "unknown_site"})
+		return
+	}
 
 	// Validate ParentID if present (must exist, same site, same post, and be approved)
 	if req.ParentID != "" {
 		ok, err := ct.DB.ParentExists(context.Background(), siteID, req.ParentID, req.PostPath, true)
 		if err != nil {
-			log.Printf("ParentExists check failed (site=%s parent=%s): %v", siteID, req.ParentID, err)
+			log.Printf("ParentExists check failed (site=%s parent=%s): %v", siteKey, req.ParentID, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "db_query_failed"})
 			return
 		}
@@ -273,18 +283,18 @@ func (ct CommentsController) PostComment(c *gin.Context) {
 	exp := time.Now().Add(72 * time.Hour).Unix()
 	base := baseURLFromRequest(c)
 
-	approvePayload := fmt.Sprintf("%s|%s|approve|%d", siteID, commentID, exp)
-	rejectPayload := fmt.Sprintf("%s|%s|reject|%d", siteID, commentID, exp)
+	approvePayload := fmt.Sprintf("%s|%s|approve|%d", siteKey, commentID, exp)
+	rejectPayload := fmt.Sprintf("%s|%s|reject|%d", siteKey, commentID, exp)
 
 	approveToken := signToken(approvePayload, siteCfg.TokenSecret)
 	rejectToken := signToken(rejectPayload, siteCfg.TokenSecret)
 
-	approveLink := fmt.Sprintf("%s/api/comments/%s/decision?token=%s", base, siteID, approveToken)
-	rejectLink := fmt.Sprintf("%s/api/comments/%s/decision?token=%s", base, siteID, rejectToken)
+	approveLink := fmt.Sprintf("%s/api/comments/%s/decision?token=%s", base, siteKey, approveToken)
+	rejectLink := fmt.Sprintf("%s/api/comments/%s/decision?token=%s", base, siteKey, rejectToken)
 
 	// Send admin email (do not fail the request if mail fails)
 	subject, body, _ := generator.BuildModerationMail(generator.ModerationMailInput{
-		SiteID:     siteID,
+		SiteID:     siteKey,
 		PostPath:   req.PostPath,
 		EntryID:    req.EntryID,
 		ParentID:   req.ParentID,
@@ -307,17 +317,18 @@ func (ct CommentsController) PostComment(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"success":   true,
 		"site_id":   siteID,
+		"site_key":  siteKey,
 		"id":        commentID,
 		"status":    "pending",
 		"mail_sent": mailSent,
 	})
 }
 
-// OPTIONS /api/comments/:siteid/
+// OPTIONS /api/comments/:sitekey/
 func (ct CommentsController) OptionsComment(c *gin.Context) {
-	siteID := c.Param("siteid")
+	siteKey := c.Param("sitekey")
 
-	siteCfg, ok := config.Cfg.CommentSites[siteID]
+	siteCfg, ok := config.Cfg.CommentSites[siteKey]
 	if !ok {
 		c.Status(http.StatusNotFound)
 		return
@@ -351,11 +362,11 @@ func baseURLFromRequest(c *gin.Context) string {
 	return proto + "://" + host
 }
 
-// GET /api/comments/:siteid/decision?token=...
+// GET /api/comments/:sitekey/decision?token=...
 func (ct CommentsController) GetDecision(c *gin.Context) {
-	siteID := c.Param("siteid")
+	siteKey := c.Param("sitekey")
 
-	siteCfg, ok := config.Cfg.CommentSites[siteID]
+	siteCfg, ok := config.Cfg.CommentSites[siteKey]
 	if !ok {
 		c.String(http.StatusNotFound, "unknown site")
 		return
@@ -401,7 +412,7 @@ func (ct CommentsController) GetDecision(c *gin.Context) {
 		return
 	}
 
-	// payload format: site_id|comment_id|action|exp_unix
+	// payload format: site_key|comment_id|action|exp_unix
 	fields := strings.Split(payload, "|")
 	if len(fields) != 4 {
 		c.String(http.StatusBadRequest, "invalid token payload")
@@ -413,8 +424,21 @@ func (ct CommentsController) GetDecision(c *gin.Context) {
 	action := fields[2]
 	expStr := fields[3]
 
-	if tokenSiteID != siteID {
+	if tokenSiteID != siteKey {
 		c.String(http.StatusForbidden, "site mismatch")
+		return
+	}
+
+	ctx := context.Background()
+
+	siteID, found, err := ct.DB.GetSiteIDByKey(ctx, siteKey)
+	if err != nil {
+		log.Printf("resolve site key failed (site=%s): %v", siteKey, err)
+		c.String(http.StatusInternalServerError, "db query failed")
+		return
+	}
+	if !found {
+		c.String(http.StatusNotFound, "unknown site")
 		return
 	}
 
@@ -430,13 +454,11 @@ func (ct CommentsController) GetDecision(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
-
 	switch action {
 	case "approve":
 		changed, err := ct.DB.ApproveComment(ctx, siteID, commentID)
 		if err != nil {
-			log.Printf("approve failed (site=%s id=%s): %v", siteID, commentID, err)
+			log.Printf("approve failed (site=%s id=%s): %v", siteKey, commentID, err)
 			c.String(http.StatusInternalServerError, "db update failed")
 			return
 		}
@@ -452,14 +474,14 @@ func (ct CommentsController) GetDecision(c *gin.Context) {
 
 		runID, err := ct.DB.CreateRun(siteID, commentID)
 		if err != nil {
-			log.Printf("create run failed (site=%s id=%s): %v", siteID, commentID, err)
+			log.Printf("create run failed (site=%s id=%s): %v", siteKey, commentID, err)
 			c.String(http.StatusOK, "approved (pipeline enqueue failed)")
 			return
 		}
 
-		if err := ct.Enqueuer.EnqueueRun(runID, siteID, commentID); err != nil {
+		if err := ct.Enqueuer.EnqueueRun(runID, siteKey, commentID); err != nil {
 			_ = ct.DB.MarkRunFailed(runID, "enqueue", err.Error())
-			log.Printf("enqueue run failed (site=%s id=%s run_id=%d): %v", siteID, commentID, runID, err)
+			log.Printf("enqueue run failed (site=%s id=%s run_id=%d): %v", siteKey, commentID, runID, err)
 			c.String(http.StatusOK, "approved (pipeline enqueue failed)")
 			return
 		}
@@ -470,7 +492,7 @@ func (ct CommentsController) GetDecision(c *gin.Context) {
 	case "reject":
 		changed, err := ct.DB.RejectComment(ctx, siteID, commentID)
 		if err != nil {
-			log.Printf("reject failed (site=%s id=%s): %v", siteID, commentID, err)
+			log.Printf("reject failed (site=%s id=%s): %v", siteKey, commentID, err)
 			c.String(http.StatusInternalServerError, "db update failed")
 			return
 		}

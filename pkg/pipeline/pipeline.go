@@ -20,22 +20,30 @@ const (
 )
 
 type Runner struct {
-	DB     *db.DB
-	SiteID string
+	DB      *db.DB
+	SiteKey string
 }
 
 func (r *Runner) Run(ctx context.Context, triggerCommentID string) (int64, error) {
 
-	siteCfg, ok := config.Cfg.CommentSites[r.SiteID]
+	siteCfg, ok := config.Cfg.CommentSites[r.SiteKey]
 	if !ok {
-		return 0, fmt.Errorf("unknown site_id %q (not found in comment_sites)", r.SiteID)
+		return 0, fmt.Errorf("unknown site_id %q (not found in comment_sites)", r.SiteKey)
 	}
 
 	if r == nil || r.DB == nil {
 		return 0, fmt.Errorf("pipeline runner: DB is nil")
 	}
 
-	runID, err := r.DB.CreateRun(r.SiteID, triggerCommentID)
+	siteNumericID, found, err := r.DB.GetSiteIDByKey(ctx, r.SiteKey)
+	if err != nil {
+		return 0, fmt.Errorf("resolve site key %q: %w", r.SiteKey, err)
+	}
+	if !found {
+		return 0, fmt.Errorf("site key %q not found in sites table", r.SiteKey)
+	}
+
+	runID, err := r.DB.CreateRun(siteNumericID, triggerCommentID)
 	if err != nil {
 		return 0, err
 	}
@@ -48,9 +56,9 @@ func (r *Runner) Run(ctx context.Context, triggerCommentID string) (int64, error
 }
 
 func (r *Runner) RunExisting(ctx context.Context, runID int64) error {
-	siteCfg, ok := config.Cfg.CommentSites[r.SiteID]
+	siteCfg, ok := config.Cfg.CommentSites[r.SiteKey]
 	if !ok {
-		return fmt.Errorf("unknown site_id %q (not found in comment_sites)", r.SiteID)
+		return fmt.Errorf("unknown site_id %q (not found in comment_sites)", r.SiteKey)
 	}
 
 	if r == nil || r.DB == nil {
@@ -74,7 +82,7 @@ func (r *Runner) runWithID(ctx context.Context, runID int64, siteCfg config.Comm
 	if err := r.DB.MarkRunStep(runID, StepCheckout); err != nil {
 		return err
 	}
-	if err := git.CheckoutWithContext(ctx, r.SiteID); err != nil {
+	if err := git.CheckoutWithContext(ctx, r.SiteKey); err != nil {
 		return fail(StepCheckout, err)
 	}
 
@@ -83,8 +91,8 @@ func (r *Runner) runWithID(ctx context.Context, runID int64, siteCfg config.Comm
 		return err
 	}
 	g := generator.Generator{
-		DB:     r.DB,
-		SiteID: r.SiteID,
+		DB:      r.DB,
+		SiteKey: r.SiteKey,
 	}
 	if err := g.Generate(ctx); err != nil {
 		return fail(StepGenerate, err)
@@ -95,7 +103,7 @@ func (r *Runner) runWithID(ctx context.Context, runID int64, siteCfg config.Comm
 		if err := r.DB.MarkRunStep(runID, StepHugo); err != nil {
 			return err
 		}
-		if err := hugo.RunWithContext(ctx, r.SiteID); err != nil {
+		if err := hugo.RunWithContext(ctx, r.SiteKey); err != nil {
 			return fail(StepHugo, err)
 		}
 	}
@@ -104,7 +112,7 @@ func (r *Runner) runWithID(ctx context.Context, runID int64, siteCfg config.Comm
 	if err := r.DB.MarkRunStep(runID, StepCommit); err != nil {
 		return err
 	}
-	if err := git.CommitWithContext(ctx, r.SiteID, "Update generated content"); err != nil {
+	if err := git.CommitWithContext(ctx, r.SiteKey, "Update generated content"); err != nil {
 		return fail(StepCommit, err)
 	}
 
@@ -112,7 +120,7 @@ func (r *Runner) runWithID(ctx context.Context, runID int64, siteCfg config.Comm
 	if err := r.DB.MarkRunStep(runID, StepPush); err != nil {
 		return err
 	}
-	if err := git.PushWithContext(ctx, r.SiteID); err != nil {
+	if err := git.PushWithContext(ctx, r.SiteKey); err != nil {
 		return fail(StepPush, err)
 	}
 
