@@ -29,10 +29,27 @@ type CommentListFilter struct {
 	SiteID int64
 	// AllowedSiteIDs must contain all sites the current user may access.
 	AllowedSiteIDs []int64
-	// pending|approved|rejected|all
+	// pending|approved|rejected|spam|deleted|all
 	Status string
 	Limit  int
 	Offset int
+}
+
+const (
+	CommentStatusPending  = "pending"
+	CommentStatusApproved = "approved"
+	CommentStatusRejected = "rejected"
+	CommentStatusSpam     = "spam"
+	CommentStatusDeleted  = "deleted"
+)
+
+func isValidCommentStatus(status string) bool {
+	switch status {
+	case CommentStatusPending, CommentStatusApproved, CommentStatusRejected, CommentStatusSpam, CommentStatusDeleted:
+		return true
+	default:
+		return false
+	}
 }
 
 func (c Comment) MarshalJSON() ([]byte, error) {
@@ -121,62 +138,78 @@ INSERT INTO comments (
 	return nil
 }
 
-// ApproveComment sets a pending comment to approved (idempotent-ish).
-// Returns true if a row was updated, false if nothing changed (not found or already decided).
-func (d *DB) ApproveComment(ctx context.Context, siteID int64, commentID string) (bool, error) {
+// SetCommentStatus updates a comment to the given status.
+// Returns true if a row was updated, false if nothing changed (not found or already in target status).
+func (d *DB) SetCommentStatus(ctx context.Context, siteID int64, commentID, status string) (bool, error) {
 	if d == nil || d.SQL == nil {
 		return false, fmt.Errorf("db not initialized")
+	}
+	if siteID <= 0 {
+		return false, fmt.Errorf("siteID must be > 0")
+	}
+	commentID = strings.TrimSpace(commentID)
+	if commentID == "" {
+		return false, fmt.Errorf("commentID is required")
+	}
+
+	status = strings.ToLower(strings.TrimSpace(status))
+	if !isValidCommentStatus(status) {
+		return false, fmt.Errorf("invalid status %q", status)
 	}
 
 	now := time.Now().Unix()
 
-	res, err := d.SQL.ExecContext(ctx, `
+	setClause := "status = ?, updated_at = ?, approved_at = NULL, rejected_at = NULL"
+	args := []any{status, now}
+
+	switch status {
+	case CommentStatusApproved:
+		setClause = "status = ?, updated_at = ?, approved_at = ?, rejected_at = NULL"
+		args = []any{status, now, now}
+	case CommentStatusRejected:
+		setClause = "status = ?, updated_at = ?, rejected_at = ?, approved_at = NULL"
+		args = []any{status, now, now}
+	}
+
+	query := `
 UPDATE comments
-   SET status = 'approved',
-       approved_at = ?,
-       rejected_at = NULL
+   SET ` + setClause + `
  WHERE site_id = ?
    AND id = ?
-   AND status = 'pending';
-`, now, siteID, commentID)
+   AND status <> ?;
+`
+	args = append(args, siteID, commentID, status)
+
+	res, err := d.SQL.ExecContext(ctx, query, args...)
 	if err != nil {
-		return false, fmt.Errorf("approve comment: %w", err)
+		return false, fmt.Errorf("set comment status (%s): %w", status, err)
 	}
 
 	affected, err := res.RowsAffected()
 	if err != nil {
-		return false, fmt.Errorf("approve comment rows affected: %w", err)
+		return false, fmt.Errorf("set comment status (%s) rows affected: %w", status, err)
 	}
 	return affected > 0, nil
 }
 
-// RejectComment sets a pending comment to rejected (idempotent-ish).
-// Returns true if a row was updated, false if nothing changed (not found or already decided).
+// ApproveComment sets a comment to approved.
+func (d *DB) ApproveComment(ctx context.Context, siteID int64, commentID string) (bool, error) {
+	return d.SetCommentStatus(ctx, siteID, commentID, CommentStatusApproved)
+}
+
+// RejectComment sets a comment to rejected.
 func (d *DB) RejectComment(ctx context.Context, siteID int64, commentID string) (bool, error) {
-	if d == nil || d.SQL == nil {
-		return false, fmt.Errorf("db not initialized")
-	}
+	return d.SetCommentStatus(ctx, siteID, commentID, CommentStatusRejected)
+}
 
-	now := time.Now().Unix()
+// SpamComment marks a comment as spam.
+func (d *DB) SpamComment(ctx context.Context, siteID int64, commentID string) (bool, error) {
+	return d.SetCommentStatus(ctx, siteID, commentID, CommentStatusSpam)
+}
 
-	res, err := d.SQL.ExecContext(ctx, `
-UPDATE comments
-   SET status = 'rejected',
-       rejected_at = ?,
-       approved_at = NULL
- WHERE site_id = ?
-   AND id = ?
-   AND status = 'pending';
-`, now, siteID, commentID)
-	if err != nil {
-		return false, fmt.Errorf("reject comment: %w", err)
-	}
-
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("reject comment rows affected: %w", err)
-	}
-	return affected > 0, nil
+// DeleteComment marks a comment as deleted (soft-delete, no row removal).
+func (d *DB) DeleteComment(ctx context.Context, siteID int64, commentID string) (bool, error) {
+	return d.SetCommentStatus(ctx, siteID, commentID, CommentStatusDeleted)
 }
 
 // ListApprovedComments returns all approved comments for a site, ordered deterministically.
@@ -285,10 +318,10 @@ func normalizeCommentFilter(f CommentListFilter) (CommentListFilter, error) {
 		return f, fmt.Errorf("allowedSiteIDs is required")
 	}
 	if f.Status == "" {
-		f.Status = "pending"
+		f.Status = CommentStatusPending
 	}
 	switch f.Status {
-	case "pending", "approved", "rejected", "all":
+	case CommentStatusPending, CommentStatusApproved, CommentStatusRejected, CommentStatusSpam, CommentStatusDeleted, "all":
 	default:
 		return f, fmt.Errorf("invalid status %q", f.Status)
 	}
@@ -338,7 +371,7 @@ SELECT COUNT(1)
 	return count, nil
 }
 
-func (d *DB) ListComments(ctx context.Context, f CommentListFilter) ([]Comment, error) {
+/*func (d *DB) ListComments(ctx context.Context, f CommentListFilter) ([]Comment, error) {
 	if d == nil || d.SQL == nil {
 		return nil, fmt.Errorf("db not initialized")
 	}
@@ -383,6 +416,120 @@ SELECT id, site_id, entry_id, post_path, parent_id, status, author, email, autho
 	}
 
 	rows, err := d.SQL.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list comments: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []Comment
+	for rows.Next() {
+		var c Comment
+		if err := rows.Scan(
+			&c.ID,
+			&c.SiteID,
+			&c.EntryID,
+			&c.PostPath,
+			&c.ParentID,
+			&c.Status,
+			&c.Author,
+			&c.Email,
+			&c.AuthorUrl,
+			&c.Body,
+			&c.CreatedAt,
+			&c.ApprovedAt,
+			&c.RejectedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan comment: %w", err)
+		}
+		out = append(out, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate comments: %w", err)
+	}
+
+	return out, nil
+}
+*/
+
+func (d *DB) ListComments(ctx context.Context, f CommentListFilter) ([]Comment, error) {
+	if d == nil || d.SQL == nil {
+		return nil, fmt.Errorf("db not initialized")
+	}
+
+	f, err := normalizeCommentFilter(f)
+	if err != nil {
+		return nil, err
+	}
+
+	// Guard: no allowed sites => no results (or return an auth error if that's your policy)
+	if len(f.AllowedSiteIDs) == 0 {
+		return []Comment{}, nil
+	}
+
+	baseSelect := `
+SELECT id, site_id, entry_id, post_path, parent_id, status, author, email, author_url, body, created_at,
+       COALESCE(approved_at, 0), COALESCE(rejected_at, 0)
+  FROM comments
+`
+
+	var (
+		query strings.Builder
+		args  []any
+	)
+
+	query.WriteString(baseSelect)
+	query.WriteString(" WHERE ")
+
+	// If a specific SiteID was requested: verify it's allowed, then filter by it.
+	if f.SiteID > 0 {
+		allowed := false
+		for _, sid := range f.AllowedSiteIDs {
+			if sid == f.SiteID {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return []Comment{}, nil // or return a 403-style error upstream
+		}
+
+		query.WriteString("site_id = ?\n")
+		args = append(args, f.SiteID)
+	} else {
+		// No specific site requested: filter to allowed sites.
+		inPlaceholders := strings.Repeat("?,", len(f.AllowedSiteIDs))
+		inPlaceholders = strings.TrimSuffix(inPlaceholders, ",")
+
+		query.WriteString("site_id IN (")
+		query.WriteString(inPlaceholders)
+		query.WriteString(")\n")
+
+		args = make([]any, 0, len(f.AllowedSiteIDs)+4)
+		for _, sid := range f.AllowedSiteIDs {
+			args = append(args, sid)
+		}
+	}
+
+	if f.Status != "all" {
+		query.WriteString(" AND status = ?\n")
+		args = append(args, f.Status)
+	}
+
+	query.WriteString(" ORDER BY created_at DESC, id DESC\n")
+
+	if f.Limit > 0 {
+		query.WriteString(" LIMIT ?\n")
+		args = append(args, f.Limit)
+		if f.Offset > 0 {
+			query.WriteString(" OFFSET ?\n")
+			args = append(args, f.Offset)
+		}
+	} else if f.Offset > 0 {
+		query.WriteString(" LIMIT -1 OFFSET ?\n")
+		args = append(args, f.Offset)
+	}
+
+	rows, err := d.SQL.QueryContext(ctx, query.String(), args...)
 	if err != nil {
 		return nil, fmt.Errorf("list comments: %w", err)
 	}

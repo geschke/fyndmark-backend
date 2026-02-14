@@ -70,6 +70,10 @@ func Start(database *db.DB) error {
 		router.OPTIONS("/api/comments/approve", commentsAdminCtl.Options)
 		router.POST("/api/comments/reject", commentsAdminCtl.PostReject)
 		router.OPTIONS("/api/comments/reject", commentsAdminCtl.Options)
+		router.POST("/api/comments/spam", commentsAdminCtl.PostSpam)
+		router.OPTIONS("/api/comments/spam", commentsAdminCtl.Options)
+		router.POST("/api/comments/delete", commentsAdminCtl.PostDelete)
+		router.OPTIONS("/api/comments/delete", commentsAdminCtl.Options)
 	}
 
 	// public routes

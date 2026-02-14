@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -82,7 +83,7 @@ func (ct CommentsAdminController) currentSessionUserID(c *gin.Context) (int64, b
 	return id, true
 }
 
-// GET /api/comments/list?site_id=<id>&status=pending|approved|rejected|all&limit=..&offset=..
+// GET /api/comments/list?site_id=<id>&status=pending|approved|rejected|spam|deleted|all&limit=..&offset=..
 func (ct CommentsAdminController) GetList(c *gin.Context) {
 	if !cors.ApplyCORS(c, config.Cfg.Auth.CORSAllowedOrigins) {
 		return
@@ -100,10 +101,10 @@ func (ct CommentsAdminController) GetList(c *gin.Context) {
 		}
 		siteID = n
 	}
-
+	fmt.Println("siteid in GetList", siteID)
 	status := strings.ToLower(strings.TrimSpace(c.DefaultQuery("status", "pending")))
 	switch status {
-	case "pending", "approved", "rejected", "all":
+	case "pending", "approved", "rejected", "spam", "deleted", "all":
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "INVALID_STATUS"})
 		return
@@ -140,6 +141,7 @@ func (ct CommentsAdminController) GetList(c *gin.Context) {
 
 	allowedSiteIDs, err := ct.DB.ListAllowedSiteIDsByUserID(ctx, userID)
 	if err != nil {
+		fmt.Println("1", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "DB_ERROR"})
 		return
 	}
@@ -151,6 +153,7 @@ func (ct CommentsAdminController) GetList(c *gin.Context) {
 	if siteID > 0 {
 		hasAccess, err := ct.DB.UserHasSiteAccess(ctx, userID, siteID)
 		if err != nil {
+			fmt.Println("2", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "DB_ERROR"})
 			return
 		}
@@ -170,12 +173,14 @@ func (ct CommentsAdminController) GetList(c *gin.Context) {
 
 	total, err := ct.DB.CountComments(ctx, filter)
 	if err != nil {
+		fmt.Println("3", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "DB_ERROR"})
 		return
 	}
 
 	list, err := ct.DB.ListComments(ctx, filter)
 	if err != nil {
+		fmt.Println("4", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "DB_ERROR"})
 		return
 	}
@@ -195,6 +200,16 @@ func (ct CommentsAdminController) PostApprove(c *gin.Context) {
 // POST /api/comments/reject
 func (ct CommentsAdminController) PostReject(c *gin.Context) {
 	ct.postModerateBatch(c, "reject")
+}
+
+// POST /api/comments/spam
+func (ct CommentsAdminController) PostSpam(c *gin.Context) {
+	ct.postModerateBatch(c, "spam")
+}
+
+// POST /api/comments/delete
+func (ct CommentsAdminController) PostDelete(c *gin.Context) {
+	ct.postModerateBatch(c, "delete")
 }
 
 func (ct CommentsAdminController) postModerateBatch(c *gin.Context, action string) {
@@ -304,6 +319,28 @@ func (ct CommentsAdminController) postModerateBatch(c *gin.Context, action strin
 			}
 			res.Changed = changed
 			res.Status = "rejected"
+			results = append(results, res)
+		case "spam":
+			changed, err := ct.DB.SpamComment(ctx, req.SiteID, id)
+			if err != nil {
+				res.Changed = false
+				res.Status = "error"
+				results = append(results, res)
+				continue
+			}
+			res.Changed = changed
+			res.Status = "spam"
+			results = append(results, res)
+		case "delete":
+			changed, err := ct.DB.DeleteComment(ctx, req.SiteID, id)
+			if err != nil {
+				res.Changed = false
+				res.Status = "error"
+				results = append(results, res)
+				continue
+			}
+			res.Changed = changed
+			res.Status = "deleted"
 			results = append(results, res)
 		default:
 			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "INVALID_ACTION"})

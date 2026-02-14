@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS comments (
   created_at    INTEGER NOT NULL,
   approved_at   INTEGER,
   rejected_at   INTEGER,
+	updated_at    INTEGER NOT NULL,
   
 	FOREIGN KEY(site_id) REFERENCES sites(id) ON DELETE CASCADE,
 	FOREIGN KEY(parent_id) REFERENCES comments(id) ON DELETE CASCADE
