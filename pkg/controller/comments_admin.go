@@ -22,15 +22,21 @@ type CommentsAdminController struct {
 	Enqueuer    PipelineEnqueuer
 }
 
+type commentModerationItem struct {
+	SiteID    int64  `json:"SiteID"`
+	CommentID string `json:"CommentID"`
+}
+
 type commentModerationBatchRequest struct {
-	SiteID     int64    `json:"SiteID"`
-	CommentIDs []string `json:"CommentIDs"`
+	Items []commentModerationItem `json:"Items"`
 }
 
 type commentModerationResult struct {
+	SiteID    int64  `json:"site_id"`
 	CommentID string `json:"comment_id"`
 	Changed   bool   `json:"changed"`
 	Status    string `json:"status"`
+	Error     string `json:"error,omitempty"`
 }
 
 func NewCommentsAdminController(database *db.DB, store sessions.Store, sessionName string, enqueuer PipelineEnqueuer) *CommentsAdminController {
@@ -219,14 +225,20 @@ func (ct CommentsAdminController) postModerateBatch(c *gin.Context, action strin
 	if !ct.ensureAuthorized(c) {
 		return
 	}
+	switch action {
+	case "approve", "reject", "spam", "delete":
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "INVALID_ACTION"})
+		return
+	}
 
 	var req commentModerationBatchRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "INVALID_JSON"})
 		return
 	}
-	if req.SiteID <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "MISSING_SITE_ID"})
+	if len(req.Items) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "MISSING_ITEMS"})
 		return
 	}
 
@@ -239,81 +251,76 @@ func (ct CommentsAdminController) postModerateBatch(c *gin.Context, action strin
 	authCtx, authCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer authCancel()
 
-	hasAccess, err := ct.DB.UserHasSiteAccess(authCtx, userID, req.SiteID)
+	allowedSiteIDs, err := ct.DB.ListAllowedSiteIDsByUserID(authCtx, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "DB_ERROR"})
 		return
 	}
-	if !hasAccess {
-		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "FORBIDDEN_SITE"})
-		return
-	}
-
-	site, found, err := ct.DB.GetSiteByID(authCtx, req.SiteID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "DB_ERROR"})
-		return
-	}
-	if !found {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "UNKNOWN_SITE"})
-		return
-	}
-	if _, ok := config.Cfg.CommentSites[site.SiteKey]; !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "UNKNOWN_SITE"})
-		return
-	}
-
-	if len(req.CommentIDs) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "MISSING_COMMENT_IDS"})
-		return
-	}
-
-	seen := make(map[string]struct{}, len(req.CommentIDs))
-	ids := make([]string, 0, len(req.CommentIDs))
-	for _, id := range req.CommentIDs {
-		id = strings.TrimSpace(id)
-		if id == "" {
+	allowedSet := make(map[int64]struct{}, len(allowedSiteIDs))
+	for _, sid := range allowedSiteIDs {
+		if sid <= 0 {
 			continue
 		}
-		if _, exists := seen[id]; exists {
+		allowedSet[sid] = struct{}{}
+	}
+
+	seen := make(map[string]struct{}, len(req.Items))
+	items := make([]commentModerationItem, 0, len(req.Items))
+	for _, item := range req.Items {
+		item.CommentID = strings.TrimSpace(item.CommentID)
+		if item.SiteID <= 0 || item.CommentID == "" {
 			continue
 		}
-		seen[id] = struct{}{}
-		ids = append(ids, id)
+		key := fmt.Sprintf("%d:%s", item.SiteID, item.CommentID)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		items = append(items, item)
 	}
-	if len(ids) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "MISSING_COMMENT_IDS"})
+	if len(items) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "MISSING_ITEMS"})
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	results := make([]commentModerationResult, 0, len(ids))
-	changedAny := false
-	for _, id := range ids {
-		res := commentModerationResult{CommentID: id}
+	results := make([]commentModerationResult, 0, len(items))
+	approvedChangedSites := make(map[int64]struct{})
+	for _, item := range items {
+		res := commentModerationResult{
+			SiteID:    item.SiteID,
+			CommentID: item.CommentID,
+		}
+
+		if _, hasAccess := allowedSet[item.SiteID]; !hasAccess {
+			res.Status = "error"
+			res.Error = "FORBIDDEN_SITE"
+			results = append(results, res)
+			continue
+		}
 
 		switch action {
 		case "approve":
-			changed, err := ct.DB.ApproveComment(ctx, req.SiteID, id)
+			changed, err := ct.DB.ApproveComment(ctx, item.SiteID, item.CommentID)
 			if err != nil {
-				res.Changed = false
 				res.Status = "error"
+				res.Error = "DB_ERROR"
 				results = append(results, res)
 				continue
 			}
 			res.Changed = changed
 			res.Status = "approved"
 			if changed {
-				changedAny = true
+				approvedChangedSites[item.SiteID] = struct{}{}
 			}
 			results = append(results, res)
 		case "reject":
-			changed, err := ct.DB.RejectComment(ctx, req.SiteID, id)
+			changed, err := ct.DB.RejectComment(ctx, item.SiteID, item.CommentID)
 			if err != nil {
-				res.Changed = false
 				res.Status = "error"
+				res.Error = "DB_ERROR"
 				results = append(results, res)
 				continue
 			}
@@ -321,10 +328,10 @@ func (ct CommentsAdminController) postModerateBatch(c *gin.Context, action strin
 			res.Status = "rejected"
 			results = append(results, res)
 		case "spam":
-			changed, err := ct.DB.SpamComment(ctx, req.SiteID, id)
+			changed, err := ct.DB.SpamComment(ctx, item.SiteID, item.CommentID)
 			if err != nil {
-				res.Changed = false
 				res.Status = "error"
+				res.Error = "DB_ERROR"
 				results = append(results, res)
 				continue
 			}
@@ -332,41 +339,53 @@ func (ct CommentsAdminController) postModerateBatch(c *gin.Context, action strin
 			res.Status = "spam"
 			results = append(results, res)
 		case "delete":
-			changed, err := ct.DB.DeleteComment(ctx, req.SiteID, id)
+			changed, err := ct.DB.DeleteComment(ctx, item.SiteID, item.CommentID)
 			if err != nil {
-				res.Changed = false
 				res.Status = "error"
+				res.Error = "DB_ERROR"
 				results = append(results, res)
 				continue
 			}
 			res.Changed = changed
 			res.Status = "deleted"
 			results = append(results, res)
-		default:
-			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "INVALID_ACTION"})
-			return
 		}
 	}
 
-	batchRunID := int64(0)
-	batchWarning := ""
-	if action == "approve" && changedAny && ct.Enqueuer != nil {
-		runID, err := ct.DB.CreateRun(req.SiteID, "")
-		if err != nil {
-			batchWarning = "pipeline_enqueue_failed"
-		} else if err := ct.Enqueuer.EnqueueRun(runID, site.SiteKey, ""); err != nil {
-			_ = ct.DB.MarkRunFailed(runID, "enqueue", err.Error())
-			batchWarning = "pipeline_enqueue_failed"
-		} else {
-			batchRunID = runID
+	batchRunIDs := map[string]int64{}
+	warnings := map[string]string{}
+	if action == "approve" && ct.Enqueuer != nil {
+		for siteID := range approvedChangedSites {
+			key := strconv.FormatInt(siteID, 10)
+			site, found, err := ct.DB.GetSiteByID(ctx, siteID)
+			if err != nil || !found {
+				warnings[key] = "pipeline_enqueue_failed"
+				continue
+			}
+			if _, ok := config.Cfg.CommentSites[site.SiteKey]; !ok {
+				warnings[key] = "pipeline_enqueue_failed"
+				continue
+			}
+
+			runID, err := ct.DB.CreateRun(siteID, "")
+			if err != nil {
+				warnings[key] = "pipeline_enqueue_failed"
+				continue
+			}
+			if err := ct.Enqueuer.EnqueueRun(runID, site.SiteKey, ""); err != nil {
+				_ = ct.DB.MarkRunFailed(runID, "enqueue", err.Error())
+				warnings[key] = "pipeline_enqueue_failed"
+				continue
+			}
+			batchRunIDs[key] = runID
 		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"success":      true,
-		"results":      results,
-		"count":        len(results),
-		"batch_run_id": batchRunID,
-		"warning":      batchWarning,
+		"success":       true,
+		"results":       results,
+		"count":         len(results),
+		"batch_run_ids": batchRunIDs,
+		"warnings":      warnings,
 	})
 }
