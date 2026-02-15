@@ -32,11 +32,11 @@ type commentModerationBatchRequest struct {
 }
 
 type commentModerationResult struct {
-	SiteID    int64  `json:"site_id"`
-	CommentID string `json:"comment_id"`
-	Changed   bool   `json:"changed"`
-	Status    string `json:"status"`
-	Error     string `json:"error,omitempty"`
+	SiteID    int64  `json:"SiteID"`
+	CommentID string `json:"CommentID"`
+	Changed   bool   `json:"Changed"`
+	Status    string `json:"Status"`
+	Error     string `json:"Error,omitempty"`
 }
 
 func NewCommentsAdminController(database *db.DB, store sessions.Store, sessionName string, enqueuer PipelineEnqueuer) *CommentsAdminController {
