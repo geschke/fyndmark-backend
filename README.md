@@ -362,3 +362,8 @@ Sends a feedback mail based on `forms.<id>` config. Form fields are submitted as
 
 ### `GET /health`
 Basic health check.
+
+
+## todo/later:
+
+Fyndmark can run headless with email moderation; Admin panel is optional and requires at least one CLI-created user + enabled config.

@@ -24,7 +24,7 @@ type ServerConfig struct {
 	Listen string `mapstructure:"listen"`
 }
 
-type AuthConfig struct {
+type WebAdminConfig struct {
 	Enabled bool `mapstructure:"enabled"`
 
 	// SessionKey is used to authenticate and optionally encrypt the session cookie.
@@ -143,9 +143,9 @@ type FormConfig struct {
 
 // AppConfig is the main configuration struct for the entire application.
 type AppConfig struct {
-	Server ServerConfig `mapstructure:"server"`
-	Auth   AuthConfig   `mapstructure:"auth"`
-	SMTP   SMTPConfig   `mapstructure:"smtp"`
+	Server   ServerConfig   `mapstructure:"server"`
+	WebAdmin WebAdminConfig `mapstructure:"web_admin"`
+	SMTP     SMTPConfig     `mapstructure:"smtp"`
 	//CORS   CORSConfig            `mapstructure:"cors"` // maybe later
 	Forms map[string]FormConfig `mapstructure:"forms"`
 
@@ -293,19 +293,19 @@ func readAndSetConfig() error {
 		}
 	}
 
-	if Cfg.Auth.Enabled {
-		if strings.TrimSpace(Cfg.Auth.SessionKey) == "" {
-			return exitOnErr(errors.New("auth.session_key must be set when auth.enabled=true"))
+	if Cfg.WebAdmin.Enabled {
+		if strings.TrimSpace(Cfg.WebAdmin.SessionKey) == "" {
+			return exitOnErr(errors.New("web_admin.session_key must be set when web_admin.enabled=true"))
 		}
-		if len(Cfg.Auth.CORSAllowedOrigins) == 0 {
-			return exitOnErr(errors.New("auth.cors_allowed_origins must be set when auth.enabled=true"))
+		if len(Cfg.WebAdmin.CORSAllowedOrigins) == 0 {
+			return exitOnErr(errors.New("web_admin.cors_allowed_origins must be set when web_admin.enabled=true"))
 		}
-		if Cfg.Auth.CookieMaxAgeDays == 0 {
-			Cfg.Auth.CookieMaxAgeDays = 30
+		if Cfg.WebAdmin.CookieMaxAgeDays == 0 {
+			Cfg.WebAdmin.CookieMaxAgeDays = 30
 		}
 		// Normalize SameSite
-		if strings.TrimSpace(Cfg.Auth.CookieSameSite) == "" {
-			Cfg.Auth.CookieSameSite = "lax"
+		if strings.TrimSpace(Cfg.WebAdmin.CookieSameSite) == "" {
+			Cfg.WebAdmin.CookieSameSite = "lax"
 		}
 	}
 

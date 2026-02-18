@@ -33,12 +33,12 @@ func Start(database *db.DB) error {
 	worker.Start()
 	comments := controller.NewCommentsController(database, worker)
 
-	if config.Cfg.Auth.Enabled {
-		sessionName := config.Cfg.Auth.SessionName
+	if config.Cfg.WebAdmin.Enabled {
+		sessionName := config.Cfg.WebAdmin.SessionName
 		if sessionName == "" {
 			sessionName = "fyndmark_session"
 		}
-		store := sessions.NewCookieStore([]byte(config.Cfg.Auth.SessionKey))
+		store := sessions.NewCookieStore([]byte(config.Cfg.WebAdmin.SessionKey))
 		auth := controller.NewAuthController(database, store, sessionName)
 		router.POST("/api/auth/login", auth.PostLogin)
 		router.OPTIONS("/api/auth/login", auth.OptionsLogin)

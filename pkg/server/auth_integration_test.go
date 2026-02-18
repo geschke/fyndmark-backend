@@ -25,13 +25,13 @@ func TestAuthLoginLogoutFlow(t *testing.T) {
 	oldCfg := config.Cfg
 	t.Cleanup(func() { config.Cfg = oldCfg })
 
-	config.Cfg.Auth.Enabled = true
-	config.Cfg.Auth.SessionKey = strings.Repeat("k", 32)
-	config.Cfg.Auth.SessionName = "fyndmark_session"
-	config.Cfg.Auth.CookieSecure = false
-	config.Cfg.Auth.CookieSameSite = "lax"
-	config.Cfg.Auth.CookieMaxAgeDays = 30
-	config.Cfg.Auth.CORSAllowedOrigins = []string{"http://localhost:3000"}
+	config.Cfg.WebAdmin.Enabled = true
+	config.Cfg.WebAdmin.SessionKey = strings.Repeat("k", 32)
+	config.Cfg.WebAdmin.SessionName = "fyndmark_session"
+	config.Cfg.WebAdmin.CookieSecure = false
+	config.Cfg.WebAdmin.CookieSameSite = "lax"
+	config.Cfg.WebAdmin.CookieMaxAgeDays = 30
+	config.Cfg.WebAdmin.CORSAllowedOrigins = []string{"http://localhost:3000"}
 
 	dbPath := filepath.Join(t.TempDir(), "auth-it.sqlite")
 	database, err := db.Open(dbPath)
@@ -54,9 +54,9 @@ func TestAuthLoginLogoutFlow(t *testing.T) {
 		t.Fatalf("seed user: %v", err)
 	}
 
-	store := sessions.NewCookieStore([]byte(config.Cfg.Auth.SessionKey))
-	authCtl := controller.NewAuthController(database, store, config.Cfg.Auth.SessionName)
-	usersCtl := controller.NewUsersController(database, store, config.Cfg.Auth.SessionName)
+	store := sessions.NewCookieStore([]byte(config.Cfg.WebAdmin.SessionKey))
+	authCtl := controller.NewAuthController(database, store, config.Cfg.WebAdmin.SessionName)
+	usersCtl := controller.NewUsersController(database, store, config.Cfg.WebAdmin.SessionName)
 
 	r := gin.New()
 	r.POST("/api/auth/login", authCtl.PostLogin)
@@ -88,7 +88,7 @@ func TestAuthLoginLogoutFlow(t *testing.T) {
 	if loginRes.StatusCode != http.StatusOK {
 		t.Fatalf("login status=%d body=%s", loginRes.StatusCode, mustReadBody(t, loginRes))
 	}
-	if !strings.Contains(strings.Join(loginRes.Header.Values("Set-Cookie"), ";"), config.Cfg.Auth.SessionName+"=") {
+	if !strings.Contains(strings.Join(loginRes.Header.Values("Set-Cookie"), ";"), config.Cfg.WebAdmin.SessionName+"=") {
 		t.Fatalf("login should set session cookie")
 	}
 
@@ -119,7 +119,7 @@ func TestAuthLoginLogoutFlow(t *testing.T) {
 	}
 
 	logoutSetCookie := strings.Join(logoutRes.Header.Values("Set-Cookie"), ";")
-	if !strings.Contains(logoutSetCookie, config.Cfg.Auth.SessionName+"=") {
+	if !strings.Contains(logoutSetCookie, config.Cfg.WebAdmin.SessionName+"=") {
 		t.Fatalf("logout should return updated session cookie")
 	}
 	if !strings.Contains(logoutSetCookie, "Max-Age=0") && !strings.Contains(strings.ToLower(logoutSetCookie), "expires=") {

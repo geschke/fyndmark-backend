@@ -28,7 +28,7 @@ func NewSitesController(database *db.DB, store sessions.Store, sessionName strin
 }
 
 func (ct SitesController) Options(c *gin.Context) {
-	_ = cors.ApplyCORS(c, config.Cfg.Auth.CORSAllowedOrigins)
+	_ = cors.ApplyCORS(c, config.Cfg.WebAdmin.CORSAllowedOrigins)
 }
 
 func (ct SitesController) ensureAuthorized(c *gin.Context) bool {
@@ -70,7 +70,7 @@ func (ct SitesController) currentSessionUserID(c *gin.Context) (int64, bool) {
 
 // GET /api/sites
 func (ct SitesController) GetList(c *gin.Context) {
-	if !cors.ApplyCORS(c, config.Cfg.Auth.CORSAllowedOrigins) {
+	if !cors.ApplyCORS(c, config.Cfg.WebAdmin.CORSAllowedOrigins) {
 		return
 	}
 	if !ct.ensureAuthorized(c) {

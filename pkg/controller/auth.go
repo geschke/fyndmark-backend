@@ -38,20 +38,20 @@ type loginRequest struct {
 
 func (ct AuthController) OptionsLogin(c *gin.Context) {
 	// Allow preflight for browser-based clients.
-	if !cors.ApplyCORS(c, config.Cfg.Auth.CORSAllowedOrigins) {
+	if !cors.ApplyCORS(c, config.Cfg.WebAdmin.CORSAllowedOrigins) {
 		return
 	}
 }
 
 func (ct AuthController) OptionsLogout(c *gin.Context) {
 	// Allow preflight for browser-based clients.
-	if !cors.ApplyCORS(c, config.Cfg.Auth.CORSAllowedOrigins) {
+	if !cors.ApplyCORS(c, config.Cfg.WebAdmin.CORSAllowedOrigins) {
 		return
 	}
 }
 
 func (ct AuthController) PostLogin(c *gin.Context) {
-	if !cors.ApplyCORS(c, config.Cfg.Auth.CORSAllowedOrigins) {
+	if !cors.ApplyCORS(c, config.Cfg.WebAdmin.CORSAllowedOrigins) {
 		return
 	}
 
@@ -110,7 +110,7 @@ func (ct AuthController) PostLogin(c *gin.Context) {
 	sess.Values["firstname"] = u.FirstName
 	sess.Values["lastname"] = u.LastName
 
-	maxAgeDays := config.Cfg.Auth.CookieMaxAgeDays
+	maxAgeDays := config.Cfg.WebAdmin.CookieMaxAgeDays
 	if maxAgeDays <= 0 {
 		maxAgeDays = 30
 	}
@@ -120,8 +120,8 @@ func (ct AuthController) PostLogin(c *gin.Context) {
 		Path:     "/",
 		MaxAge:   maxAge,
 		HttpOnly: true,
-		Secure:   config.Cfg.Auth.CookieSecure,
-		SameSite: parseSameSite(config.Cfg.Auth.CookieSameSite),
+		Secure:   config.Cfg.WebAdmin.CookieSecure,
+		SameSite: parseSameSite(config.Cfg.WebAdmin.CookieSameSite),
 	}
 
 	if err := sess.Save(c.Request, c.Writer); err != nil {
@@ -140,7 +140,7 @@ func (ct AuthController) PostLogin(c *gin.Context) {
 }
 
 func (ct AuthController) PostLogout(c *gin.Context) {
-	if !cors.ApplyCORS(c, config.Cfg.Auth.CORSAllowedOrigins) {
+	if !cors.ApplyCORS(c, config.Cfg.WebAdmin.CORSAllowedOrigins) {
 		return
 	}
 
@@ -163,8 +163,8 @@ func (ct AuthController) PostLogout(c *gin.Context) {
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   config.Cfg.Auth.CookieSecure,
-		SameSite: parseSameSite(config.Cfg.Auth.CookieSameSite),
+		Secure:   config.Cfg.WebAdmin.CookieSecure,
+		SameSite: parseSameSite(config.Cfg.WebAdmin.CookieSameSite),
 	}
 
 	if err := sess.Save(c.Request, c.Writer); err != nil {

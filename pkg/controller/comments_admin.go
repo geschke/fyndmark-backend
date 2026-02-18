@@ -49,7 +49,7 @@ func NewCommentsAdminController(database *db.DB, store sessions.Store, sessionNa
 }
 
 func (ct CommentsAdminController) Options(c *gin.Context) {
-	_ = cors.ApplyCORS(c, config.Cfg.Auth.CORSAllowedOrigins)
+	_ = cors.ApplyCORS(c, config.Cfg.WebAdmin.CORSAllowedOrigins)
 }
 
 func (ct CommentsAdminController) ensureAuthorized(c *gin.Context) bool {
@@ -91,7 +91,7 @@ func (ct CommentsAdminController) currentSessionUserID(c *gin.Context) (int64, b
 
 // GET /api/comments/list?site_id=<id>&status=pending|approved|rejected|spam|deleted|all&limit=..&offset=..
 func (ct CommentsAdminController) GetList(c *gin.Context) {
-	if !cors.ApplyCORS(c, config.Cfg.Auth.CORSAllowedOrigins) {
+	if !cors.ApplyCORS(c, config.Cfg.WebAdmin.CORSAllowedOrigins) {
 		return
 	}
 	if !ct.ensureAuthorized(c) {
@@ -219,7 +219,7 @@ func (ct CommentsAdminController) PostDelete(c *gin.Context) {
 }
 
 func (ct CommentsAdminController) postModerateBatch(c *gin.Context, action string) {
-	if !cors.ApplyCORS(c, config.Cfg.Auth.CORSAllowedOrigins) {
+	if !cors.ApplyCORS(c, config.Cfg.WebAdmin.CORSAllowedOrigins) {
 		return
 	}
 	if !ct.ensureAuthorized(c) {
