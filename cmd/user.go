@@ -175,8 +175,8 @@ var userListCmd = &cobra.Command{
 				u.Email,
 				u.FirstName,
 				u.LastName,
-				u.DateCreated,
-				u.DateUpdated,
+				u.CreatedAt,
+				u.UpdatedAt,
 			)
 		}
 		return nil

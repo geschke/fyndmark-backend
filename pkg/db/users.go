@@ -9,13 +9,13 @@ import (
 )
 
 type User struct {
-	ID          int64  `json:"ID"`
-	Password    string `json:"Password,omitempty"`
-	FirstName   string `json:"FirstName,omitempty"`
-	LastName    string `json:"LastName,omitempty"`
-	Email       string `json:"Email,omitempty"`
-	DateCreated int64  `json:"DateCreated,omitempty"`
-	DateUpdated int64  `json:"DateUpdated,omitempty"`
+	ID        int64  `json:"ID"`
+	Password  string `json:"Password,omitempty"`
+	FirstName string `json:"FirstName,omitempty"`
+	LastName  string `json:"LastName,omitempty"`
+	Email     string `json:"Email,omitempty"`
+	CreatedAt int64  `json:"CreatedAt,omitempty"`
+	UpdatedAt int64  `json:"UpdatedAt,omitempty"`
 }
 
 func normalizeUser(u User) (User, error) {
@@ -33,10 +33,10 @@ func normalizeUser(u User) (User, error) {
 	}
 
 	now := time.Now().Unix()
-	if u.DateCreated == 0 {
-		u.DateCreated = now
+	if u.CreatedAt == 0 {
+		u.CreatedAt = now
 	}
-	u.DateUpdated = now
+	u.UpdatedAt = now
 
 	return u, nil
 }
@@ -53,9 +53,9 @@ func (d *DB) CreateUser(ctx context.Context, u User) (int64, error) {
 
 	res, err := d.SQL.ExecContext(ctx, `
 INSERT INTO users (
-  password, firstname, lastname, email, date_created, date_updated
+  password, firstname, lastname, email, created_at, updated_at
 ) VALUES (?, ?, ?, ?, ?, ?);
-`, u.Password, u.FirstName, u.LastName, u.Email, u.DateCreated, u.DateUpdated)
+`, u.Password, u.FirstName, u.LastName, u.Email, u.CreatedAt, u.UpdatedAt)
 	if err != nil {
 		return 0, fmt.Errorf("create user: %w", err)
 	}
@@ -75,8 +75,8 @@ func scanUser(row *sql.Row) (User, error) {
 		&u.FirstName,
 		&u.LastName,
 		&u.Email,
-		&u.DateCreated,
-		&u.DateUpdated,
+		&u.CreatedAt,
+		&u.UpdatedAt,
 	); err != nil {
 		return User{}, err
 	}
@@ -92,7 +92,7 @@ func (d *DB) GetUserByID(ctx context.Context, id int64) (User, bool, error) {
 	}
 
 	row := d.SQL.QueryRowContext(ctx, `
-SELECT id, password, firstname, lastname, email, date_created, date_updated
+SELECT id, password, firstname, lastname, email, created_at, updated_at
   FROM users
  WHERE id = ?
  LIMIT 1;
@@ -120,7 +120,7 @@ func (d *DB) GetUserByEmail(ctx context.Context, email string) (User, bool, erro
 	}
 
 	row := d.SQL.QueryRowContext(ctx, `
-SELECT id, password, firstname, lastname, email, date_created, date_updated
+SELECT id, password, firstname, lastname, email, created_at, updated_at
   FROM users
  WHERE email = ?
  LIMIT 1;
@@ -137,7 +137,7 @@ SELECT id, password, firstname, lastname, email, date_created, date_updated
 	return u, true, nil
 }
 
-// UpdateUser updates the user record by ID and always sets date_updated to now.
+// UpdateUser updates the user record by ID and always sets updated_at to now.
 // Returns true if a row was updated, false if the user was not found.
 func (d *DB) UpdateUser(ctx context.Context, u User) (bool, error) {
 	if d == nil || d.SQL == nil {
@@ -154,12 +154,12 @@ func (d *DB) UpdateUser(ctx context.Context, u User) (bool, error) {
 
 	now := time.Now().Unix()
 
-	// Always update firstname/lastname (empty is allowed) and date_updated.
+	// Always update firstname/lastname (empty is allowed) and updated_at.
 	// Update email/password only when explicitly provided (non-empty).
 	setParts := []string{
 		"firstname = ?",
 		"lastname = ?",
-		"date_updated = ?",
+		"updated_at = ?",
 	}
 	args := []any{u.FirstName, u.LastName, now}
 
@@ -234,7 +234,7 @@ func (d *DB) ListUsers(ctx context.Context) ([]User, error) {
 	}
 
 	rows, err := d.SQL.QueryContext(ctx, `
-SELECT id, firstname, lastname, email, date_created, date_updated
+SELECT id, firstname, lastname, email, created_at, updated_at
   FROM users
  ORDER BY id ASC;
 `)
@@ -251,8 +251,8 @@ SELECT id, firstname, lastname, email, date_created, date_updated
 			&u.FirstName,
 			&u.LastName,
 			&u.Email,
-			&u.DateCreated,
-			&u.DateUpdated,
+			&u.CreatedAt,
+			&u.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan user: %w", err)
 		}

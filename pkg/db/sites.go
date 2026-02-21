@@ -11,11 +11,26 @@ import (
 )
 
 type Site struct {
-	ID          int64  `json:"id"`
-	SiteKey     string `json:"site_key"`
-	Name        string `json:"name"`
-	DateCreated int64  `json:"date_created"`
-	DateUpdated int64  `json:"date_updated"`
+	ID        int64  `json:"ID"`
+	SiteKey   string `json:"SiteKey"`
+	Name      string `json:"Name"`
+	Status    string `json:"Status"`
+	CreatedAt int64  `json:"CreatedAt"`
+	UpdatedAt int64  `json:"UpdatedAt"`
+}
+
+const (
+	SiteStatusActive   = "active"
+	SiteStatusDisabled = "disabled"
+)
+
+func isValidSiteStatus(status string) bool {
+	switch status {
+	case SiteStatusActive, SiteStatusDisabled:
+		return true
+	default:
+		return false
+	}
 }
 
 func (d *DB) UpsertSite(ctx context.Context, site Site) error {
@@ -28,19 +43,24 @@ func (d *DB) UpsertSite(ctx context.Context, site Site) error {
 		return fmt.Errorf("site key is required")
 	}
 	name := strings.TrimSpace(site.Name)
+	status := strings.TrimSpace(site.Status)
+	if !isValidSiteStatus(status) {
+		return fmt.Errorf("invalid site status %q", status)
+	}
 	now := time.Now().Unix()
-	created := site.DateCreated
+	created := site.CreatedAt
 	if created <= 0 {
 		created = now
 	}
 
 	_, err := d.SQL.ExecContext(ctx, `
-INSERT INTO sites (site_key, name, date_created, date_updated)
-VALUES (?, ?, ?, ?)
+INSERT INTO sites (site_key, name, status, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?)
 ON CONFLICT(site_key) DO UPDATE SET
   name = excluded.name,
-  date_updated = excluded.date_updated;
-`, siteKey, name, created, now)
+  status = excluded.status,
+  updated_at = excluded.updated_at;
+`, siteKey, name, status, created, now)
 	if err != nil {
 		return fmt.Errorf("upsert site: %w", err)
 	}
@@ -51,13 +71,67 @@ func (d *DB) SyncSitesFromConfig(ctx context.Context, cfg map[string]config.Comm
 	if d == nil || d.SQL == nil {
 		return fmt.Errorf("db not initialized")
 	}
+
+	configSiteKeys := make([]string, 0, len(cfg))
 	for siteKey, siteCfg := range cfg {
+		siteKey = strings.TrimSpace(siteKey)
+		if siteKey == "" {
+			return fmt.Errorf("site key is required")
+		}
+		configSiteKeys = append(configSiteKeys, siteKey)
+
 		if err := d.UpsertSite(ctx, Site{
 			SiteKey: siteKey,
 			Name:    siteCfg.Title,
+			Status:  SiteStatusActive,
 		}); err != nil {
-			return err
+			return fmt.Errorf("upsert config site %q: %w", siteKey, err)
 		}
+	}
+
+	if err := d.disableSitesNotInConfig(ctx, configSiteKeys); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d *DB) disableSitesNotInConfig(ctx context.Context, activeSiteKeys []string) error {
+	if d == nil || d.SQL == nil {
+		return fmt.Errorf("db not initialized")
+	}
+
+	now := time.Now().Unix()
+
+	// Empty config means all existing DB sites are no longer configured.
+	if len(activeSiteKeys) == 0 {
+		_, err := d.SQL.ExecContext(ctx, `
+UPDATE sites
+   SET status = ?, updated_at = ?
+ WHERE status <> ?;
+`, SiteStatusDisabled, now, SiteStatusDisabled)
+		if err != nil {
+			return fmt.Errorf("disable sites not in config: %w", err)
+		}
+		return nil
+	}
+
+	placeholders := strings.TrimRight(strings.Repeat("?,", len(activeSiteKeys)), ",")
+	query := fmt.Sprintf(`
+UPDATE sites
+   SET status = ?, updated_at = ?
+ WHERE status <> ?
+   AND site_key NOT IN (%s);
+`, placeholders)
+
+	args := make([]any, 0, 3+len(activeSiteKeys))
+	args = append(args, SiteStatusDisabled, now, SiteStatusDisabled)
+	for _, siteKey := range activeSiteKeys {
+		args = append(args, siteKey)
+	}
+
+	if _, err := d.SQL.ExecContext(ctx, query, args...); err != nil {
+		return fmt.Errorf("disable sites not in config: %w", err)
 	}
 	return nil
 }
@@ -97,11 +171,11 @@ func (d *DB) GetSiteByID(ctx context.Context, siteID int64) (Site, bool, error) 
 
 	var s Site
 	err := d.SQL.QueryRowContext(ctx, `
-SELECT id, site_key, name, date_created, date_updated
+SELECT id, site_key, name, status, created_at, updated_at
   FROM sites
  WHERE id = ?
  LIMIT 1;
-`, siteID).Scan(&s.ID, &s.SiteKey, &s.Name, &s.DateCreated, &s.DateUpdated)
+`, siteID).Scan(&s.ID, &s.SiteKey, &s.Name, &s.Status, &s.CreatedAt, &s.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return Site{}, false, nil
 	}
@@ -148,7 +222,7 @@ func (d *DB) ListSitesByUserID(ctx context.Context, userID int64) ([]Site, error
 	}
 
 	rows, err := d.SQL.QueryContext(ctx, `
-SELECT s.id, s.site_key, s.name, s.date_created, s.date_updated
+SELECT s.id, s.site_key, s.name, s.status, s.created_at, s.updated_at
   FROM sites s
   JOIN user_sites us ON us.site_id = s.id
  WHERE us.user_id = ?
@@ -162,7 +236,7 @@ SELECT s.id, s.site_key, s.name, s.date_created, s.date_updated
 	out := make([]Site, 0)
 	for rows.Next() {
 		var s Site
-		if err := rows.Scan(&s.ID, &s.SiteKey, &s.Name, &s.DateCreated, &s.DateUpdated); err != nil {
+		if err := rows.Scan(&s.ID, &s.SiteKey, &s.Name, &s.Status, &s.CreatedAt, &s.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan site by user: %w", err)
 		}
 		out = append(out, s)

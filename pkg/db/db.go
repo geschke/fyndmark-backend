@@ -112,23 +112,24 @@ CREATE TABLE IF NOT EXISTS users (
   firstname     TEXT,
   lastname      TEXT,
   email         TEXT NOT NULL,
-  date_created  INTEGER NOT NULL,
-  date_updated  INTEGER NOT NULL
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
 );
 `,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email    ON users(email);`,
-		`CREATE INDEX        IF NOT EXISTS idx_users_updated  ON users(date_updated);`,
+		`CREATE INDEX        IF NOT EXISTS idx_users_updated  ON users(updated_at);`,
 		`
 CREATE TABLE IF NOT EXISTS sites (
   id            INTEGER PRIMARY KEY,
 	site_key			TEXT NOT NULL,
   name          TEXT,
-  date_created  INTEGER NOT NULL,
-  date_updated  INTEGER NOT NULL
-);
+	status      TEXT NOT NULL DEFAULT '',
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
+	);
 `,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_sites_key ON sites(site_key);`,
-		`CREATE INDEX IF NOT EXISTS idx_sites_updated ON sites(date_updated);`,
+		`CREATE INDEX IF NOT EXISTS idx_sites_updated ON sites(updated_at);`,
 		`
 CREATE TABLE IF NOT EXISTS user_sites (
   user_id INTEGER NOT NULL,
