@@ -213,6 +213,43 @@ SELECT 1
 	return true, nil
 }
 
+func (d *DB) ListSites(ctx context.Context) ([]Site, error) {
+	if d == nil || d.SQL == nil {
+		return nil, fmt.Errorf("db not initialized")
+	}
+
+	rows, err := d.SQL.QueryContext(ctx, `
+SELECT id, site_key, name, status, created_at, updated_at
+  FROM sites
+ ORDER BY id ASC;
+`)
+	if err != nil {
+		return nil, fmt.Errorf("list sites: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make([]Site, 0)
+	for rows.Next() {
+		var s Site
+		if err := rows.Scan(
+			&s.ID,
+			&s.SiteKey,
+			&s.Name,
+			&s.Status,
+			&s.CreatedAt,
+			&s.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan site: %w", err)
+		}
+		out = append(out, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate sites: %w", err)
+	}
+
+	return out, nil
+}
+
 func (d *DB) ListSitesByUserID(ctx context.Context, userID int64) ([]Site, error) {
 	if d == nil || d.SQL == nil {
 		return nil, fmt.Errorf("db not initialized")
