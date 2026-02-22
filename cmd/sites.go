@@ -43,10 +43,10 @@ var sitesListCmd = &cobra.Command{
 
 		for _, s := range list {
 			fmt.Printf(
-				"id=%d site_key=%s name=%q status=%s created_at=%d updated_at=%d\n",
+				"id=%d site_key=%s title=%q status=%s created_at=%d updated_at=%d\n",
 				s.ID,
 				s.SiteKey,
-				s.Name,
+				s.Title,
 				s.Status,
 				s.CreatedAt,
 				s.UpdatedAt,

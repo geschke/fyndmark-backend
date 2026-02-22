@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS sites (
   id            INTEGER PRIMARY KEY,
 	site_key			TEXT NOT NULL,
-  name          TEXT,
+  title          TEXT NOT NULL DEFAULT '',
 	status      TEXT NOT NULL DEFAULT '',
   created_at  INTEGER NOT NULL,
   updated_at  INTEGER NOT NULL

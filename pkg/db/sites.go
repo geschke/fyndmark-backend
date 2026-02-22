@@ -6,14 +6,12 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/geschke/fyndmark/config"
 )
 
 type Site struct {
 	ID        int64  `json:"ID"`
 	SiteKey   string `json:"SiteKey"`
-	Name      string `json:"Name"`
+	Title     string `json:"Title"`
 	Status    string `json:"Status"`
 	CreatedAt int64  `json:"CreatedAt"`
 	UpdatedAt int64  `json:"UpdatedAt"`
@@ -24,115 +22,160 @@ const (
 	SiteStatusDisabled = "disabled"
 )
 
-func isValidSiteStatus(status string) bool {
-	switch status {
-	case SiteStatusActive, SiteStatusDisabled:
-		return true
-	default:
-		return false
-	}
+type cfgSiteInfo struct {
+	seen  bool
+	title string
 }
 
-func (d *DB) UpsertSite(ctx context.Context, site Site) error {
+// SyncSites reconciles config site keys with DB rows.
+// Rules:
+// - missing config key disables DB rows only when current status is "active"
+// - existing config key enables DB rows only when current status is "disabled"
+// - other statuses remain untouched
+// - new config keys are inserted as active
+func (d *DB) SyncSites(ctx context.Context, configuredSiteKeys map[string]string) error {
 	if d == nil || d.SQL == nil {
 		return fmt.Errorf("db not initialized")
 	}
 
-	siteKey := strings.TrimSpace(site.SiteKey)
-	if siteKey == "" {
-		return fmt.Errorf("site key is required")
-	}
-	name := strings.TrimSpace(site.Name)
-	status := strings.TrimSpace(site.Status)
-	if !isValidSiteStatus(status) {
-		return fmt.Errorf("invalid site status %q", status)
-	}
-	now := time.Now().Unix()
-	created := site.CreatedAt
-	if created <= 0 {
-		created = now
-	}
-
-	_, err := d.SQL.ExecContext(ctx, `
-INSERT INTO sites (site_key, name, status, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?)
-ON CONFLICT(site_key) DO UPDATE SET
-  name = excluded.name,
-  status = excluded.status,
-  updated_at = excluded.updated_at;
-`, siteKey, name, status, created, now)
-	if err != nil {
-		return fmt.Errorf("upsert site: %w", err)
-	}
-	return nil
-}
-
-func (d *DB) SyncSitesFromConfig(ctx context.Context, cfg map[string]config.CommentsSiteConfig) error {
-	if d == nil || d.SQL == nil {
-		return fmt.Errorf("db not initialized")
-	}
-
-	configSiteKeys := make([]string, 0, len(cfg))
-	for siteKey, siteCfg := range cfg {
-		siteKey = strings.TrimSpace(siteKey)
+	cfgByKey := make(map[string]cfgSiteInfo, len(configuredSiteKeys))
+	for rawKey, rawTitle := range configuredSiteKeys {
+		siteKey := strings.TrimSpace(rawKey)
 		if siteKey == "" {
 			return fmt.Errorf("site key is required")
 		}
-		configSiteKeys = append(configSiteKeys, siteKey)
-
-		if err := d.UpsertSite(ctx, Site{
-			SiteKey: siteKey,
-			Name:    siteCfg.Title,
-			Status:  SiteStatusActive,
-		}); err != nil {
-			return fmt.Errorf("upsert config site %q: %w", siteKey, err)
+		if _, exists := cfgByKey[siteKey]; exists {
+			return fmt.Errorf("duplicate site key %q", siteKey)
+		}
+		cfgByKey[siteKey] = cfgSiteInfo{
+			seen:  false,
+			title: strings.TrimSpace(rawTitle),
 		}
 	}
 
-	if err := d.disableSitesNotInConfig(ctx, configSiteKeys); err != nil {
-		return err
+	tx, err := d.SQL.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin sites sync tx: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	// Compare + Collect
+	rows, err := tx.QueryContext(ctx, `
+SELECT site_key, status
+  FROM sites
+ ORDER BY site_key ASC;
+`)
+	if err != nil {
+		return fmt.Errorf("query sites for sync: %w", err)
 	}
 
-	return nil
-}
+	toEnable := make([]string, 0)
+	toDisable := make([]string, 0)
 
-func (d *DB) disableSitesNotInConfig(ctx context.Context, activeSiteKeys []string) error {
-	if d == nil || d.SQL == nil {
-		return fmt.Errorf("db not initialized")
+	for rows.Next() {
+		var siteKey string
+		var status string
+		if err := rows.Scan(&siteKey, &status); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("scan site for sync: %w", err)
+		}
+
+		// site_key found in config?
+		if info, inConfig := cfgByKey[siteKey]; inConfig {
+			info.seen = true
+			cfgByKey[siteKey] = info
+			if status == SiteStatusDisabled {
+				toEnable = append(toEnable, siteKey)
+			}
+		} else {
+			// site_key not found: set to disabled if status is active in database
+			if status == SiteStatusActive {
+				toDisable = append(toDisable, siteKey)
+			}
+		}
+
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return fmt.Errorf("iterate sites for sync: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close sites scan: %w", err)
 	}
 
+	toInsert := make([]string, 0)
+	for siteKey, info := range cfgByKey {
+		if !info.seen {
+			toInsert = append(toInsert, siteKey)
+		}
+	}
+
+	// Apply
 	now := time.Now().Unix()
 
-	// Empty config means all existing DB sites are no longer configured.
-	if len(activeSiteKeys) == 0 {
-		_, err := d.SQL.ExecContext(ctx, `
+	enableStmt, err := tx.PrepareContext(ctx, `
+UPDATE sites
+   SET status = ?, title = ?, updated_at = ?
+ WHERE site_key = ?
+   AND status = ?;
+`)
+	if err != nil {
+		return fmt.Errorf("prepare enable site: %w", err)
+	}
+	defer func() { _ = enableStmt.Close() }()
+
+	disableStmt, err := tx.PrepareContext(ctx, `
 UPDATE sites
    SET status = ?, updated_at = ?
- WHERE status <> ?;
-`, SiteStatusDisabled, now, SiteStatusDisabled)
-		if err != nil {
-			return fmt.Errorf("disable sites not in config: %w", err)
+ WHERE site_key = ?
+   AND status = ?;
+`)
+	if err != nil {
+		return fmt.Errorf("prepare disable site: %w", err)
+	}
+	defer func() { _ = disableStmt.Close() }()
+
+	insertStmt, err := tx.PrepareContext(ctx, `
+INSERT INTO sites (site_key, title, status, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?);
+`)
+	if err != nil {
+		return fmt.Errorf("prepare insert site: %w", err)
+	}
+	defer func() { _ = insertStmt.Close() }()
+
+	for _, siteKey := range toEnable {
+		if _, err := enableStmt.ExecContext(
+			ctx,
+			SiteStatusActive,
+			cfgByKey[siteKey].title,
+			now,
+			siteKey,
+			SiteStatusDisabled,
+		); err != nil {
+			return fmt.Errorf("enable site %q: %w", siteKey, err)
 		}
-		return nil
+	}
+	for _, siteKey := range toDisable {
+		if _, err := disableStmt.ExecContext(ctx, SiteStatusDisabled, now, siteKey, SiteStatusActive); err != nil {
+			return fmt.Errorf("disable site %q: %w", siteKey, err)
+		}
+	}
+	for _, siteKey := range toInsert {
+		if _, err := insertStmt.ExecContext(ctx, siteKey, cfgByKey[siteKey].title, SiteStatusActive, now, now); err != nil {
+			return fmt.Errorf("insert site %q: %w", siteKey, err)
+		}
 	}
 
-	placeholders := strings.TrimRight(strings.Repeat("?,", len(activeSiteKeys)), ",")
-	query := fmt.Sprintf(`
-UPDATE sites
-   SET status = ?, updated_at = ?
- WHERE status <> ?
-   AND site_key NOT IN (%s);
-`, placeholders)
-
-	args := make([]any, 0, 3+len(activeSiteKeys))
-	args = append(args, SiteStatusDisabled, now, SiteStatusDisabled)
-	for _, siteKey := range activeSiteKeys {
-		args = append(args, siteKey)
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit sites sync tx: %w", err)
 	}
-
-	if _, err := d.SQL.ExecContext(ctx, query, args...); err != nil {
-		return fmt.Errorf("disable sites not in config: %w", err)
-	}
+	committed = true
 	return nil
 }
 
@@ -171,11 +214,11 @@ func (d *DB) GetSiteByID(ctx context.Context, siteID int64) (Site, bool, error) 
 
 	var s Site
 	err := d.SQL.QueryRowContext(ctx, `
-SELECT id, site_key, name, status, created_at, updated_at
+SELECT id, site_key, title, status, created_at, updated_at
   FROM sites
  WHERE id = ?
  LIMIT 1;
-`, siteID).Scan(&s.ID, &s.SiteKey, &s.Name, &s.Status, &s.CreatedAt, &s.UpdatedAt)
+`, siteID).Scan(&s.ID, &s.SiteKey, &s.Title, &s.Status, &s.CreatedAt, &s.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return Site{}, false, nil
 	}
@@ -219,7 +262,7 @@ func (d *DB) ListSites(ctx context.Context) ([]Site, error) {
 	}
 
 	rows, err := d.SQL.QueryContext(ctx, `
-SELECT id, site_key, name, status, created_at, updated_at
+SELECT id, site_key, title, status, created_at, updated_at
   FROM sites
  ORDER BY id ASC;
 `)
@@ -234,7 +277,7 @@ SELECT id, site_key, name, status, created_at, updated_at
 		if err := rows.Scan(
 			&s.ID,
 			&s.SiteKey,
-			&s.Name,
+			&s.Title,
 			&s.Status,
 			&s.CreatedAt,
 			&s.UpdatedAt,
@@ -259,7 +302,7 @@ func (d *DB) ListSitesByUserID(ctx context.Context, userID int64) ([]Site, error
 	}
 
 	rows, err := d.SQL.QueryContext(ctx, `
-SELECT s.id, s.site_key, s.name, s.status, s.created_at, s.updated_at
+SELECT s.id, s.site_key, s.title, s.status, s.created_at, s.updated_at
   FROM sites s
   JOIN user_sites us ON us.site_id = s.id
  WHERE us.user_id = ?
@@ -273,7 +316,7 @@ SELECT s.id, s.site_key, s.name, s.status, s.created_at, s.updated_at
 	out := make([]Site, 0)
 	for rows.Next() {
 		var s Site
-		if err := rows.Scan(&s.ID, &s.SiteKey, &s.Name, &s.Status, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.SiteKey, &s.Title, &s.Status, &s.CreatedAt, &s.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan site by user: %w", err)
 		}
 		out = append(out, s)
