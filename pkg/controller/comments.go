@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -229,6 +230,7 @@ func (ct CommentsController) PostComment(c *gin.Context) {
 	if req.AuthorUrl != "" {
 		authorUrl = sql.NullString{String: req.AuthorUrl, Valid: true}
 	}
+	clientIP := resolveClientIP(c, config.Cfg.Server.TrustedProxies)
 
 	// Insert into DB (pending by default)
 	if ct.DB == nil {
@@ -271,6 +273,7 @@ func (ct CommentsController) PostComment(c *gin.Context) {
 		Email:     req.Email,
 		AuthorUrl: authorUrl,
 		Body:      req.Body,
+		IP:        clientIP,
 		CreatedAt: time.Now().Unix(),
 	})
 	if err != nil {
@@ -302,6 +305,7 @@ func (ct CommentsController) PostComment(c *gin.Context) {
 		Author:     req.Author,
 		Email:      req.Email,
 		AuthorUrl:  req.AuthorUrl,
+		ClientIP:   clientIP,
 		Body:       req.Body,
 		CreatedAt:  time.Now(),
 		ApproveURL: approveLink,
@@ -360,6 +364,83 @@ func baseURLFromRequest(c *gin.Context) string {
 	}
 	host := c.Request.Host
 	return proto + "://" + host
+}
+
+func resolveClientIP(c *gin.Context, trustedProxies []string) string {
+	peerIP := parsePeerIP(c.Request.RemoteAddr)
+
+	// If peer is not trusted (or not parseable), ignore forwarding headers.
+	if !isTrustedProxy(peerIP, trustedProxies) {
+		return peerIP
+	}
+
+	// Trusted peer: first try X-Forwarded-For (first IP only).
+	xff := strings.TrimSpace(c.GetHeader("X-Forwarded-For"))
+	if xff != "" {
+		first := strings.TrimSpace(strings.Split(xff, ",")[0])
+		if net.ParseIP(first) != nil {
+			return first
+		}
+	}
+
+	// Then X-Real-IP.
+	xri := strings.TrimSpace(c.GetHeader("X-Real-IP"))
+	if xri != "" && net.ParseIP(xri) != nil {
+		return xri
+	}
+
+	// Fallback: peer IP (or empty if peer not parseable).
+	return peerIP
+}
+
+func parsePeerIP(remoteAddr string) string {
+	remoteAddr = strings.TrimSpace(remoteAddr)
+	if remoteAddr == "" {
+		return ""
+	}
+
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err == nil {
+		if net.ParseIP(host) != nil {
+			return host
+		}
+		return ""
+	}
+
+	// Also allow plain IP without port.
+	if net.ParseIP(remoteAddr) != nil {
+		return remoteAddr
+	}
+
+	return ""
+}
+
+func isTrustedProxy(peerIP string, trustedProxies []string) bool {
+	if peerIP == "" || len(trustedProxies) == 0 {
+		return false
+	}
+	ip := net.ParseIP(peerIP)
+	if ip == nil {
+		return false
+	}
+
+	for _, raw := range trustedProxies {
+		entry := strings.TrimSpace(raw)
+		if entry == "" {
+			continue
+		}
+		if strings.Contains(entry, "/") {
+			_, n, err := net.ParseCIDR(entry)
+			if err == nil && n.Contains(ip) {
+				return true
+			}
+			continue
+		}
+		if tip := net.ParseIP(entry); tip != nil && tip.Equal(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 // GET /api/comments/:sitekey/decision?token=...

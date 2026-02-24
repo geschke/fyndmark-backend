@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS comments (
   email         TEXT NOT NULL,
   author_url    TEXT,
   body          TEXT NOT NULL,
+	ip            TEXT NOT NULL DEFAULT '',
   created_at    INTEGER NOT NULL,
   approved_at   INTEGER,
   rejected_at   INTEGER,
@@ -88,6 +89,7 @@ CREATE TABLE IF NOT EXISTS comments (
 		`CREATE INDEX IF NOT EXISTS idx_comments_site_status_created ON comments(site_id, status, created_at);`,
 		`CREATE INDEX IF NOT EXISTS idx_comments_site_post_created   ON comments(site_id, post_path, created_at);`,
 		`CREATE INDEX IF NOT EXISTS idx_comments_site_parent_created ON comments(site_id, parent_id, created_at);`,
+		`CREATE INDEX IF NOT EXISTS idx_comments_site_ip_created ON comments(site_id, ip, created_at);`,
 		`
 CREATE TABLE IF NOT EXISTS pipeline_runs (
   id                  INTEGER PRIMARY KEY,

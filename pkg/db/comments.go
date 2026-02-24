@@ -20,6 +20,7 @@ type Comment struct {
 	Email      string         `json:"Email"`
 	AuthorUrl  sql.NullString `json:"AuthorUrl"`
 	Body       string         `json:"Body"`
+	IP         string         `json:"IP,omitempty"`
 	CreatedAt  int64          `json:"CreatedAt"`
 	ApprovedAt int64          `json:"ApprovedAt"`
 	RejectedAt int64          `json:"RejectedAt"`
@@ -119,6 +120,7 @@ func (d *DB) InsertComment(ctx context.Context, c Comment) error {
 	c.AuthorUrl = normalizeNullString(c.AuthorUrl)
 
 	c.Body = strings.TrimSpace(c.Body)
+	c.IP = strings.TrimSpace(c.IP)
 	c.Status = strings.TrimSpace(c.Status)
 
 	if c.CreatedAt == 0 {
@@ -127,9 +129,9 @@ func (d *DB) InsertComment(ctx context.Context, c Comment) error {
 
 	_, err := d.SQL.ExecContext(ctx, `
 INSERT INTO comments (
-  id, site_id, entry_id, post_path, parent_id, status, author, email, author_url, body, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-`, c.ID, c.SiteID, c.EntryID, c.PostPath, c.ParentID, c.Status, c.Author, c.Email, c.AuthorUrl, c.Body, c.CreatedAt)
+  id, site_id, entry_id, post_path, parent_id, status, author, email, author_url, body, ip, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+`, c.ID, c.SiteID, c.EntryID, c.PostPath, c.ParentID, c.Status, c.Author, c.Email, c.AuthorUrl, c.Body, c.IP, c.CreatedAt)
 
 	if err != nil {
 		return fmt.Errorf("insert comment: %w", err)

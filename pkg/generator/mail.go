@@ -18,6 +18,7 @@ type ModerationMailInput struct {
 	Author     string
 	AuthorUrl  string
 	Email      string
+	ClientIP   string
 	Body       string
 	CreatedAt  time.Time
 	ApproveURL string
@@ -52,6 +53,7 @@ func BuildModerationMail(in ModerationMailInput) (string, string, sanitize.Comme
 	sb.WriteString("\n")
 	sb.WriteString("Author: " + in.Author + "\n")
 	sb.WriteString("Email: " + in.Email + "\n\n")
+	sb.WriteString("Client IP: " + strings.TrimSpace(in.ClientIP) + "\n\n")
 	sb.WriteString("URL: " + in.AuthorUrl + "\n\n")
 
 	sb.WriteString("Body (sanitized):\n")

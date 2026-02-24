@@ -22,6 +22,9 @@ import (
 type ServerConfig struct {
 	// Listen is the address the HTTP server should bind to, e.g. ":8080" or "0.0.0.0:8080".
 	Listen string `mapstructure:"listen"`
+
+	// TrustedProxies defines reverse proxies (IP or CIDR) whose forwarding headers are trusted.
+	TrustedProxies []string `mapstructure:"trusted_proxies"`
 }
 
 type WebAdminConfig struct {
