@@ -20,7 +20,7 @@ type Comment struct {
 	Email      string         `json:"Email"`
 	AuthorUrl  sql.NullString `json:"AuthorUrl"`
 	Body       string         `json:"Body"`
-	IP         string         `json:"IP,omitempty"`
+	IP         string         `json:"IP"`
 	CreatedAt  int64          `json:"CreatedAt"`
 	ApprovedAt int64          `json:"ApprovedAt"`
 	RejectedAt int64          `json:"RejectedAt"`
@@ -65,6 +65,7 @@ func (c Comment) MarshalJSON() ([]byte, error) {
 		Email      string `json:"Email"`
 		AuthorUrl  string `json:"AuthorUrl"`
 		Body       string `json:"Body"`
+		IP         string `json:"IP"`
 		CreatedAt  int64  `json:"CreatedAt"`
 		ApprovedAt int64  `json:"ApprovedAt"`
 		RejectedAt int64  `json:"RejectedAt"`
@@ -79,6 +80,7 @@ func (c Comment) MarshalJSON() ([]byte, error) {
 		Email:      c.Email,
 		AuthorUrl:  nullStringToString(c.AuthorUrl),
 		Body:       c.Body,
+		IP:         c.IP,
 		CreatedAt:  c.CreatedAt,
 		ApprovedAt: c.ApprovedAt,
 		RejectedAt: c.RejectedAt,
@@ -216,6 +218,7 @@ func (d *DB) DeleteComment(ctx context.Context, siteID int64, commentID string) 
 
 // ListApprovedComments returns all approved comments for a site, ordered deterministically.
 // Ordering: post_path ASC, created_at ASC, id ASC.
+// currently used in generator, maybe replace with ListComments with status approved
 func (d *DB) ListApprovedComments(ctx context.Context, siteID int64) ([]Comment, error) {
 	if d == nil || d.SQL == nil {
 		return nil, fmt.Errorf("db not initialized")
@@ -469,7 +472,7 @@ func (d *DB) ListComments(ctx context.Context, f CommentListFilter) ([]Comment, 
 	}
 
 	baseSelect := `
-SELECT id, site_id, entry_id, post_path, parent_id, status, author, email, author_url, body, created_at,
+SELECT id, site_id, entry_id, post_path, parent_id, status, author, email, author_url, body, ip, created_at,
        COALESCE(approved_at, 0), COALESCE(rejected_at, 0)
   FROM comments
 `
@@ -551,6 +554,7 @@ SELECT id, site_id, entry_id, post_path, parent_id, status, author, email, autho
 			&c.Email,
 			&c.AuthorUrl,
 			&c.Body,
+			&c.IP,
 			&c.CreatedAt,
 			&c.ApprovedAt,
 			&c.RejectedAt,
@@ -562,6 +566,5 @@ SELECT id, site_id, entry_id, post_path, parent_id, status, author, email, autho
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate comments: %w", err)
 	}
-
 	return out, nil
 }
