@@ -1,4 +1,4 @@
-package cmd
+﻿package cmd
 
 import (
 	"context"
@@ -13,6 +13,7 @@ var (
 	runSiteKey string
 )
 
+// init configures package-level command and flag wiring.
 func init() {
 	pipelineRunCmd.Flags().StringVar(&runSiteKey, "site-key", "", "Site Key from config.comment_sites (required)")
 	rootCmd.AddCommand(pipelineRunCmd)

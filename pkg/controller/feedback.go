@@ -1,4 +1,4 @@
-package controller
+﻿package controller
 
 import (
 	"fmt"
@@ -17,6 +17,7 @@ import (
 type FeedbackController struct {
 }
 
+// NewFeedbackController constructs and returns a new instance.
 func NewFeedbackController() *FeedbackController {
 	ct := FeedbackController{}
 	return &ct

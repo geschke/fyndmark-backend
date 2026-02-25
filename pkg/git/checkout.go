@@ -1,4 +1,4 @@
-package git
+﻿package git
 
 import (
 	"context"
@@ -15,6 +15,7 @@ type GitRunner struct {
 	SiteID string
 }
 
+// Checkout performs its package-specific operation.
 func (r *GitRunner) Checkout(ctx context.Context) error {
 	if r == nil {
 		return fmt.Errorf("git runner is nil")
@@ -22,6 +23,7 @@ func (r *GitRunner) Checkout(ctx context.Context) error {
 	return CheckoutWithContext(ctx, r.SiteID)
 }
 
+// CheckoutWithContext performs its package-specific operation.
 func CheckoutWithContext(ctx context.Context, siteID string) error {
 	siteID = strings.TrimSpace(siteID)
 	if siteID == "" {

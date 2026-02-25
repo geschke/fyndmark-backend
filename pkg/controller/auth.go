@@ -1,4 +1,4 @@
-package controller
+﻿package controller
 
 import (
 	"context"
@@ -22,6 +22,7 @@ type AuthController struct {
 	SessionName string
 }
 
+// NewAuthController constructs and returns a new instance.
 func NewAuthController(database *db.DB, store sessions.Store, sessionName string) *AuthController {
 	return &AuthController{
 		DB:          database,
@@ -36,6 +37,7 @@ type loginRequest struct {
 	ReturnSecureToken bool   `json:"returnSecureToken"`
 }
 
+// OptionsLogin handles the CORS preflight request.
 func (ct AuthController) OptionsLogin(c *gin.Context) {
 	// Allow preflight for browser-based clients.
 	if !cors.ApplyCORS(c, config.Cfg.WebAdmin.CORSAllowedOrigins) {
@@ -43,6 +45,7 @@ func (ct AuthController) OptionsLogin(c *gin.Context) {
 	}
 }
 
+// OptionsLogout handles the CORS preflight request.
 func (ct AuthController) OptionsLogout(c *gin.Context) {
 	// Allow preflight for browser-based clients.
 	if !cors.ApplyCORS(c, config.Cfg.WebAdmin.CORSAllowedOrigins) {
@@ -50,6 +53,7 @@ func (ct AuthController) OptionsLogout(c *gin.Context) {
 	}
 }
 
+// PostLogin performs its package-specific operation.
 func (ct AuthController) PostLogin(c *gin.Context) {
 	if !cors.ApplyCORS(c, config.Cfg.WebAdmin.CORSAllowedOrigins) {
 		return
@@ -139,6 +143,7 @@ func (ct AuthController) PostLogin(c *gin.Context) {
 	})
 }
 
+// PostLogout performs its package-specific operation.
 func (ct AuthController) PostLogout(c *gin.Context) {
 	if !cors.ApplyCORS(c, config.Cfg.WebAdmin.CORSAllowedOrigins) {
 		return
@@ -175,6 +180,7 @@ func (ct AuthController) PostLogout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "LOGGED_OUT"})
 }
 
+// parseSameSite performs its package-specific operation.
 func parseSameSite(v string) http.SameSite {
 	switch strings.ToLower(strings.TrimSpace(v)) {
 	case "strict":

@@ -1,4 +1,4 @@
-/*
+﻿/*
 Copyright © 2025 Ralf Geschke <ralf@kuerbis.org>
 */
 package cmd
@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// init configures package-level command and flag wiring.
 func init() {
 	rootCmd.AddCommand(serveCmd)
 

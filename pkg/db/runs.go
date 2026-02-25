@@ -1,4 +1,4 @@
-package db
+﻿package db
 
 import (
 	"fmt"
@@ -12,6 +12,7 @@ const (
 	RunFailed  = "failed"
 )
 
+// nowUnix performs its package-specific operation.
 func nowUnix() int64 {
 	return time.Now().Unix()
 }

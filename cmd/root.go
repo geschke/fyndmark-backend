@@ -1,7 +1,4 @@
-/*
-Copyright © 2025 NAME HERE <EMAIL ADDRESS>
-*/
-package cmd
+﻿package cmd
 
 import (
 	"fmt"
@@ -58,6 +55,7 @@ func Execute() {
 	}
 }
 
+// init configures package-level command and flag wiring.
 func init() {
 	// Global config file flag
 	rootCmd.PersistentFlags().StringVar(

@@ -1,4 +1,4 @@
-package controller
+﻿package controller
 
 import (
 	"context"
@@ -19,6 +19,7 @@ type SitesController struct {
 	SessionName string
 }
 
+// NewSitesController constructs and returns a new instance.
 func NewSitesController(database *db.DB, store sessions.Store, sessionName string) *SitesController {
 	return &SitesController{
 		DB:          database,
@@ -27,10 +28,12 @@ func NewSitesController(database *db.DB, store sessions.Store, sessionName strin
 	}
 }
 
+// Options handles the CORS preflight request.
 func (ct SitesController) Options(c *gin.Context) {
 	_ = cors.ApplyCORS(c, config.Cfg.WebAdmin.CORSAllowedOrigins)
 }
 
+// ensureAuthorized performs its package-specific operation.
 func (ct SitesController) ensureAuthorized(c *gin.Context) bool {
 	if ct.DB == nil || ct.DB.SQL == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "DB_NOT_INITIALIZED"})
@@ -52,6 +55,7 @@ func (ct SitesController) ensureAuthorized(c *gin.Context) bool {
 	return true
 }
 
+// currentSessionUserID performs its package-specific operation.
 func (ct SitesController) currentSessionUserID(c *gin.Context) (int64, bool) {
 	sess, _ := ct.Store.Get(c.Request, ct.SessionName)
 	if sess == nil {

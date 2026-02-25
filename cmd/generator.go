@@ -1,4 +1,4 @@
-package cmd
+﻿package cmd
 
 import (
 	"context"
@@ -13,6 +13,7 @@ var (
 	siteKey string
 )
 
+// init configures package-level command and flag wiring.
 func init() {
 	generateCommentsCmd.Flags().StringVar(&siteKey, "site-key", "", "Site Key from config.comment_sites (required)")
 	rootCmd.AddCommand(generateCommentsCmd)

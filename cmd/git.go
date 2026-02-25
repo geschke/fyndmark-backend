@@ -1,4 +1,4 @@
-package cmd
+﻿package cmd
 
 import (
 	"context"
@@ -14,6 +14,7 @@ var (
 	gitCommitMsg string
 )
 
+// init configures package-level command and flag wiring.
 func init() {
 
 	// Shared flag for all git subcommands

@@ -1,4 +1,4 @@
-package hcaptcha
+﻿package hcaptcha
 
 import (
 	"bytes"
@@ -18,6 +18,7 @@ type VerifyResponse struct {
 	ErrorCodes []string `json:"error-codes"`
 }
 
+// New constructs and returns a new instance.
 func New(secretKey string) (*Provider, error) {
 	if secretKey == "" {
 		return nil, fmt.Errorf("hcaptcha secret key is not configured")
@@ -30,6 +31,7 @@ func (p *Provider) Validate(token, remoteIP string) (bool, []string, error) {
 	return verify(token, remoteIP, p.SecretKey)
 }
 
+// verify performs its package-specific operation.
 func verify(token, remoteIP, secret string) (bool, []string, error) {
 	if secret == "" {
 		return false, nil, fmt.Errorf("hcaptcha secret key is not configured")

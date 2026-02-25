@@ -1,4 +1,4 @@
-package db
+﻿package db
 
 import (
 	"database/sql"
@@ -13,6 +13,7 @@ type DB struct {
 	SQL *sql.DB
 }
 
+// Open performs its package-specific operation.
 func Open(sqlitePath string) (*DB, error) {
 	// modernc sqlite DSN: "file:<path>?_pragma=..."
 	// Keep it simple and apply pragmas explicitly after open.
@@ -48,6 +49,7 @@ func Open(sqlitePath string) (*DB, error) {
 	return &DB{SQL: sqlDB}, nil
 }
 
+// Close performs its package-specific operation.
 func (d *DB) Close() error {
 	if d == nil || d.SQL == nil {
 		return nil

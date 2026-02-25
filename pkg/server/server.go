@@ -1,4 +1,4 @@
-package server
+﻿package server
 
 import (
 	"context"
@@ -19,6 +19,7 @@ import (
 	"github.com/gorilla/sessions"
 )
 
+// Start starts processing.
 func Start(database *db.DB) error {
 	gin.SetMode(gin.ReleaseMode)
 
@@ -124,6 +125,7 @@ func Start(database *db.DB) error {
 	return serveErr
 }
 
+// getMain returns data for the requested input.
 func getMain(c *gin.Context) {
 	c.Header("Access-Control-Allow-Methods", "PUT, POST, GET, DELETE, OPTIONS")
 	c.JSON(200, gin.H{

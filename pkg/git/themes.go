@@ -1,4 +1,4 @@
-package git
+﻿package git
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"github.com/geschke/fyndmark/pkg/gitcli"
 )
 
+// ensureThemes performs its package-specific operation.
 func ensureThemes(ctx context.Context, siteID string, workDir string) error {
 	siteCfg, ok := config.Cfg.CommentSites[siteID]
 	if !ok {
@@ -73,6 +74,7 @@ func ensureThemes(ctx context.Context, siteID string, workDir string) error {
 	return nil
 }
 
+// existsDir performs its package-specific operation.
 func existsDir(path string) bool {
 	st, err := os.Stat(path)
 	if err != nil {
@@ -81,6 +83,7 @@ func existsDir(path string) bool {
 	return st.IsDir()
 }
 
+// sanitizeRelativePath performs its package-specific operation.
 func sanitizeRelativePath(p string) (string, error) {
 	// Reject absolute paths.
 	if filepath.IsAbs(p) {

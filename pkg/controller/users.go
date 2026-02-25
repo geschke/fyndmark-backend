@@ -1,4 +1,4 @@
-package controller
+﻿package controller
 
 import (
 	"context"
@@ -22,6 +22,7 @@ type UsersController struct {
 	SessionName string
 }
 
+// NewUsersController constructs and returns a new instance.
 func NewUsersController(database *db.DB, store sessions.Store, sessionName string) *UsersController {
 	return &UsersController{
 		DB:          database,
@@ -30,6 +31,7 @@ func NewUsersController(database *db.DB, store sessions.Store, sessionName strin
 	}
 }
 
+// Options handles the CORS preflight request.
 func (ct UsersController) Options(c *gin.Context) {
 	// Allow preflight for browser-based clients.
 	_ = cors.ApplyCORS(c, config.Cfg.WebAdmin.CORSAllowedOrigins)
@@ -54,6 +56,7 @@ type updatePasswordRequest struct {
 	PasswordDuplicate string `json:"PasswordDuplicate"`
 }
 
+// ensureAuthorized performs its package-specific operation.
 func (ct UsersController) ensureAuthorized(c *gin.Context) bool {
 	if ct.DB == nil || ct.DB.SQL == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "DB_NOT_INITIALIZED"})
@@ -77,6 +80,7 @@ func (ct UsersController) ensureAuthorized(c *gin.Context) bool {
 	return true
 }
 
+// currentSessionUserID performs its package-specific operation.
 func (ct UsersController) currentSessionUserID(c *gin.Context) (int64, bool) {
 	sess, _ := ct.Store.Get(c.Request, ct.SessionName)
 	if sess == nil {
@@ -93,6 +97,7 @@ func (ct UsersController) currentSessionUserID(c *gin.Context) (int64, bool) {
 	return id, true
 }
 
+// parseUserID performs its package-specific operation.
 func parseUserID(c *gin.Context) (int64, bool) {
 	id, err := strconv.ParseInt(strings.TrimSpace(c.Param("id")), 10, 64)
 	if err != nil || id <= 0 {

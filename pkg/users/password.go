@@ -1,4 +1,4 @@
-package users
+﻿package users
 
 import (
 	"crypto/rand"
@@ -35,6 +35,7 @@ var DefaultArgon2idParams = Argon2idParams{
 	KeyLen:      32,
 }
 
+// ValidatePassword performs its package-specific operation.
 func ValidatePassword(password string) error {
 	if strings.TrimSpace(password) == "" {
 		return ErrPasswordRequired

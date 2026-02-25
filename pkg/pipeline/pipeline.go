@@ -1,4 +1,4 @@
-package pipeline
+﻿package pipeline
 
 import (
 	"context"
@@ -24,6 +24,7 @@ type Runner struct {
 	SiteKey string
 }
 
+// Run runs the configured operation.
 func (r *Runner) Run(ctx context.Context, triggerCommentID string) (int64, error) {
 
 	siteCfg, ok := config.Cfg.CommentSites[r.SiteKey]
@@ -55,6 +56,7 @@ func (r *Runner) Run(ctx context.Context, triggerCommentID string) (int64, error
 	return runID, nil
 }
 
+// RunExisting runs the configured operation.
 func (r *Runner) RunExisting(ctx context.Context, runID int64) error {
 	siteCfg, ok := config.Cfg.CommentSites[r.SiteKey]
 	if !ok {
@@ -68,6 +70,7 @@ func (r *Runner) RunExisting(ctx context.Context, runID int64) error {
 	return r.runWithID(ctx, runID, siteCfg)
 }
 
+// runWithID runs the configured operation.
 func (r *Runner) runWithID(ctx context.Context, runID int64, siteCfg config.CommentsSiteConfig) error {
 	if err := r.DB.MarkRunRunning(runID); err != nil {
 		return err

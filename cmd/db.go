@@ -1,4 +1,4 @@
-package cmd
+﻿package cmd
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"github.com/geschke/fyndmark/pkg/db"
 )
 
+// openDatabase performs its package-specific operation.
 func openDatabase() (*db.DB, func(), error) {
 	database, err := db.Open(config.Cfg.SQLite.Path)
 	if err != nil {
@@ -38,6 +39,7 @@ func openDatabase() (*db.DB, func(), error) {
 	return database, cleanup, nil
 }
 
+// collectConfiguredSites performs its package-specific operation.
 func collectConfiguredSites(cfg map[string]config.CommentsSiteConfig) (map[string]string, error) {
 	out := make(map[string]string, len(cfg))
 

@@ -1,4 +1,4 @@
-package turnstile
+﻿package turnstile
 
 import (
 	"bytes"
@@ -18,6 +18,7 @@ type VerifyResponse struct {
 	ErrorCodes []string `json:"error-codes"`
 }
 
+// New constructs and returns a new instance.
 func New(secretKey string) (*Provider, error) {
 	if secretKey == "" {
 		return nil, fmt.Errorf("turnstile secret key is not configured")
@@ -39,6 +40,7 @@ func Validate(token, remoteIP, secret string, enabled bool) (bool, []string, err
 	return verify(token, remoteIP, secret)
 }
 
+// verify performs its package-specific operation.
 func verify(token, remoteIP, secret string) (bool, []string, error) {
 	if secret == "" {
 		return false, nil, fmt.Errorf("turnstile secret key is not configured")

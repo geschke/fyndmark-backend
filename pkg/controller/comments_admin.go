@@ -1,4 +1,4 @@
-package controller
+﻿package controller
 
 import (
 	"context"
@@ -39,6 +39,7 @@ type commentModerationResult struct {
 	Error     string `json:"Error,omitempty"`
 }
 
+// NewCommentsAdminController constructs and returns a new instance.
 func NewCommentsAdminController(database *db.DB, store sessions.Store, sessionName string, enqueuer PipelineEnqueuer) *CommentsAdminController {
 	return &CommentsAdminController{
 		DB:          database,
@@ -48,10 +49,12 @@ func NewCommentsAdminController(database *db.DB, store sessions.Store, sessionNa
 	}
 }
 
+// Options handles the CORS preflight request.
 func (ct CommentsAdminController) Options(c *gin.Context) {
 	_ = cors.ApplyCORS(c, config.Cfg.WebAdmin.CORSAllowedOrigins)
 }
 
+// ensureAuthorized performs its package-specific operation.
 func (ct CommentsAdminController) ensureAuthorized(c *gin.Context) bool {
 	if ct.DB == nil || ct.DB.SQL == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "DB_NOT_INITIALIZED"})
@@ -73,6 +76,7 @@ func (ct CommentsAdminController) ensureAuthorized(c *gin.Context) bool {
 	return true
 }
 
+// currentSessionUserID performs its package-specific operation.
 func (ct CommentsAdminController) currentSessionUserID(c *gin.Context) (int64, bool) {
 	sess, _ := ct.Store.Get(c.Request, ct.SessionName)
 	if sess == nil {
@@ -219,6 +223,7 @@ func (ct CommentsAdminController) PostDelete(c *gin.Context) {
 	ct.postModerateBatch(c, "delete")
 }
 
+// postModerateBatch performs its package-specific operation.
 func (ct CommentsAdminController) postModerateBatch(c *gin.Context, action string) {
 	if !cors.ApplyCORS(c, config.Cfg.WebAdmin.CORSAllowedOrigins) {
 		return

@@ -1,4 +1,4 @@
-package sanitize
+﻿package sanitize
 
 import (
 	"fmt"
@@ -309,6 +309,7 @@ func SanitizeAuthorURL(input string, maxLen int) (string, AuthorURLReport, error
 	return normalized, rep, nil
 }
 
+// isPrivateOrLocalIP performs its package-specific operation.
 func isPrivateOrLocalIP(ip net.IP) bool {
 	ip = ip.To16()
 	if ip == nil {

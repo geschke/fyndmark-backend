@@ -1,4 +1,4 @@
-package hugo
+﻿package hugo
 
 import (
 	"context"
@@ -15,6 +15,7 @@ type HugoRunner struct {
 	SiteID string
 }
 
+// Run runs the configured operation.
 func (r *HugoRunner) Run(ctx context.Context) error {
 	if r == nil {
 		return fmt.Errorf("hugo runner is nil")
@@ -22,6 +23,7 @@ func (r *HugoRunner) Run(ctx context.Context) error {
 	return RunWithContext(ctx, r.SiteID)
 }
 
+// RunWithContext runs the configured operation.
 func RunWithContext(ctx context.Context, siteId string) error {
 	siteId = strings.TrimSpace(siteId)
 	if siteId == "" {

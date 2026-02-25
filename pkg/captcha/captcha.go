@@ -1,4 +1,4 @@
-package captcha
+﻿package captcha
 
 import (
 	"fmt"
@@ -13,6 +13,7 @@ type Provider interface {
 	Validate(token, remoteIP string) (bool, []string, error)
 }
 
+// ResolveProvider performs its package-specific operation.
 func ResolveProvider(cfg *config.CaptchaConfig) (Provider, error) {
 	if cfg == nil || !cfg.Enabled {
 		return nil, nil

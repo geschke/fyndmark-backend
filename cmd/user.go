@@ -1,4 +1,4 @@
-package cmd
+﻿package cmd
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// init configures package-level command and flag wiring.
 func init() {
 	rootCmd.AddCommand(userCmd)
 	userCmd.AddCommand(userCreateCmd)
@@ -305,6 +306,7 @@ var userSitesCmd = &cobra.Command{
 	},
 }
 
+// readPassword performs its package-specific operation.
 func readPassword(cmd *cobra.Command, flagValue string, fromStdin bool) (string, error) {
 	if strings.TrimSpace(flagValue) != "" {
 		return flagValue, nil
@@ -325,6 +327,7 @@ func readPassword(cmd *cobra.Command, flagValue string, fromStdin bool) (string,
 	return pw, nil
 }
 
+// resolveCLIUserID performs its package-specific operation.
 func resolveCLIUserID(ctx context.Context, database *db.DB, id int64, email string) (int64, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	if (id > 0 && email != "") || (id <= 0 && email == "") {
@@ -352,6 +355,7 @@ func resolveCLIUserID(ctx context.Context, database *db.DB, id int64, email stri
 	return userID, nil
 }
 
+// resolveCLISiteID performs its package-specific operation.
 func resolveCLISiteID(ctx context.Context, database *db.DB, siteID int64, siteKey string) (int64, error) {
 	siteKey = strings.TrimSpace(siteKey)
 	if (siteID > 0 && siteKey != "") || (siteID <= 0 && siteKey == "") {

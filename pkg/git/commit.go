@@ -1,4 +1,4 @@
-package git
+﻿package git
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"github.com/geschke/fyndmark/pkg/gitcli"
 )
 
+// Commit performs its package-specific operation.
 func (r *GitRunner) Commit(ctx context.Context, message string) error {
 	if r == nil {
 		return fmt.Errorf("git runner is nil")
@@ -16,6 +17,7 @@ func (r *GitRunner) Commit(ctx context.Context, message string) error {
 	return CommitWithContext(ctx, r.SiteID, message)
 }
 
+// CommitWithContext performs its package-specific operation.
 func CommitWithContext(ctx context.Context, siteID string, message string) error {
 	siteID = strings.TrimSpace(siteID)
 	if siteID == "" {

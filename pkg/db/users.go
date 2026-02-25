@@ -1,4 +1,4 @@
-package db
+﻿package db
 
 import (
 	"context"
@@ -18,6 +18,7 @@ type User struct {
 	UpdatedAt int64  `json:"UpdatedAt,omitempty"`
 }
 
+// normalizeUser performs its package-specific operation.
 func normalizeUser(u User) (User, error) {
 	u.Password = strings.TrimSpace(u.Password)
 	u.FirstName = strings.TrimSpace(u.FirstName)
@@ -41,6 +42,7 @@ func normalizeUser(u User) (User, error) {
 	return u, nil
 }
 
+// CreateUser creates a new record.
 func (d *DB) CreateUser(ctx context.Context, u User) (int64, error) {
 	if d == nil || d.SQL == nil {
 		return 0, fmt.Errorf("db not initialized")
@@ -67,6 +69,7 @@ INSERT INTO users (
 	return id, nil
 }
 
+// scanUser performs its package-specific operation.
 func scanUser(row *sql.Row) (User, error) {
 	var u User
 	if err := row.Scan(
@@ -83,6 +86,7 @@ func scanUser(row *sql.Row) (User, error) {
 	return u, nil
 }
 
+// GetUserByID returns data for the requested input.
 func (d *DB) GetUserByID(ctx context.Context, id int64) (User, bool, error) {
 	if d == nil || d.SQL == nil {
 		return User{}, false, fmt.Errorf("db not initialized")
@@ -109,6 +113,7 @@ SELECT id, password, firstname, lastname, email, created_at, updated_at
 	return u, true, nil
 }
 
+// GetUserByEmail returns data for the requested input.
 func (d *DB) GetUserByEmail(ctx context.Context, email string) (User, bool, error) {
 	if d == nil || d.SQL == nil {
 		return User{}, false, fmt.Errorf("db not initialized")
@@ -228,6 +233,7 @@ func (d *DB) DeleteUser(ctx context.Context, id int64) (bool, error) {
 	return affected > 0, nil
 }
 
+// ListUsers returns a list for the requested filter.
 func (d *DB) ListUsers(ctx context.Context) ([]User, error) {
 	if d == nil || d.SQL == nil {
 		return nil, fmt.Errorf("db not initialized")
@@ -265,6 +271,7 @@ SELECT id, firstname, lastname, email, created_at, updated_at
 	return out, nil
 }
 
+// GetUserIDByEmail returns data for the requested input.
 func (d *DB) GetUserIDByEmail(ctx context.Context, email string) (int64, bool, error) {
 	if d == nil || d.SQL == nil {
 		return 0, false, fmt.Errorf("db not initialized")
@@ -291,6 +298,7 @@ SELECT id
 	return id, true, nil
 }
 
+// UserExistsByID performs its package-specific operation.
 func (d *DB) UserExistsByID(ctx context.Context, userID int64) (bool, error) {
 	if d == nil || d.SQL == nil {
 		return false, fmt.Errorf("db not initialized")
@@ -315,6 +323,7 @@ SELECT 1
 	return true, nil
 }
 
+// GrantUserSite performs its package-specific operation.
 func (d *DB) GrantUserSite(ctx context.Context, userID int64, siteID int64) (bool, error) {
 	if d == nil || d.SQL == nil {
 		return false, fmt.Errorf("db not initialized")
@@ -341,6 +350,7 @@ ON CONFLICT(user_id, site_id) DO NOTHING;
 	return affected > 0, nil
 }
 
+// RevokeUserSite performs its package-specific operation.
 func (d *DB) RevokeUserSite(ctx context.Context, userID int64, siteID int64) (bool, error) {
 	if d == nil || d.SQL == nil {
 		return false, fmt.Errorf("db not initialized")

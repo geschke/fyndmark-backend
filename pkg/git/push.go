@@ -1,4 +1,4 @@
-package git
+﻿package git
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"github.com/geschke/fyndmark/pkg/gitcli"
 )
 
+// Push performs its package-specific operation.
 func (r *GitRunner) Push(ctx context.Context) error {
 	if r == nil {
 		return fmt.Errorf("git runner is nil")
@@ -16,6 +17,7 @@ func (r *GitRunner) Push(ctx context.Context) error {
 	return PushWithContext(ctx, r.SiteID)
 }
 
+// PushWithContext performs its package-specific operation.
 func PushWithContext(ctx context.Context, siteID string) error {
 	siteID = strings.TrimSpace(siteID)
 	if siteID == "" {

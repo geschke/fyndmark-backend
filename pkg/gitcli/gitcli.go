@@ -1,4 +1,4 @@
-package gitcli
+﻿package gitcli
 
 import (
 	"bytes"
@@ -141,6 +141,7 @@ func Push(ctx context.Context, repoDir string, timeout time.Duration) error {
 	return nil
 }
 
+// runGit runs the configured operation.
 func runGit(ctx context.Context, dir string, args []string) (string, error) {
 	var out bytes.Buffer
 
@@ -155,6 +156,7 @@ func runGit(ctx context.Context, dir string, args []string) (string, error) {
 	return out.String(), nil
 }
 
+// buildHTTPSURLWithToken performs its package-specific operation.
 func buildHTTPSURLWithToken(repoURL string, token string) (string, error) {
 	u := strings.TrimSpace(repoURL)
 	if !strings.HasPrefix(u, "https://") {
@@ -171,6 +173,7 @@ func buildHTTPSURLWithToken(repoURL string, token string) (string, error) {
 	return prefix + "x-access-token:" + token + "@" + strings.TrimPrefix(u, prefix), nil
 }
 
+// redact performs its package-specific operation.
 func redact(s string) string {
 	out := s
 	for {

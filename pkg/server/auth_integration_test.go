@@ -1,4 +1,4 @@
-package server_test
+﻿package server_test
 
 import (
 	"bytes"
@@ -19,6 +19,7 @@ import (
 	"github.com/gorilla/sessions"
 )
 
+// TestAuthLoginLogoutFlow tests the expected behavior of this component.
 func TestAuthLoginLogoutFlow(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -153,6 +154,7 @@ func TestAuthLoginLogoutFlow(t *testing.T) {
 	}
 }
 
+// mustReadBody performs its package-specific operation.
 func mustReadBody(t *testing.T, res *http.Response) string {
 	t.Helper()
 	b, err := io.ReadAll(res.Body)

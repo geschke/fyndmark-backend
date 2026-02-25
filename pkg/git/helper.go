@@ -1,4 +1,4 @@
-package git
+﻿package git
 
 import (
 	"fmt"
@@ -8,6 +8,7 @@ import (
 	"github.com/geschke/fyndmark/config"
 )
 
+// ResolveWorkdir performs its package-specific operation.
 func ResolveWorkdir(siteID string) (string, error) {
 	siteID = strings.TrimSpace(siteID)
 	if siteID == "" {

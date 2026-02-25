@@ -1,4 +1,4 @@
-package sanitize
+﻿package sanitize
 
 import (
 	"bytes"
@@ -100,6 +100,7 @@ func SanitizeCommentBody(input string) string {
 	return out
 }
 
+// stripHTMLToTextWithStats performs its package-specific operation.
 func stripHTMLToTextWithStats(s string) (text string, tagTokens int, commentTokens int, doctypeTokens int) {
 	var b strings.Builder
 	b.Grow(len(s))
@@ -129,6 +130,7 @@ func stripHTMLToTextWithStats(s string) (text string, tagTokens int, commentToke
 	}
 }
 
+// renderAllowedMarkdownWithReport performs its package-specific operation.
 func renderAllowedMarkdownWithReport(doc ast.Node, source []byte, rep *CommentBodyReport) string {
 	var b strings.Builder
 
@@ -142,6 +144,7 @@ func renderAllowedMarkdownWithReport(doc ast.Node, source []byte, rep *CommentBo
 	return b.String()
 }
 
+// renderNodeWithReport performs its package-specific operation.
 func renderNodeWithReport(n ast.Node, source []byte, rep *CommentBodyReport) string {
 	switch x := n.(type) {
 	case *ast.Paragraph:
@@ -227,6 +230,7 @@ func renderNodeWithReport(n ast.Node, source []byte, rep *CommentBodyReport) str
 	}
 }
 
+// renderInlineChildrenWithReport performs its package-specific operation.
 func renderInlineChildrenWithReport(n ast.Node, source []byte, rep *CommentBodyReport) string {
 	var b strings.Builder
 	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
@@ -235,6 +239,7 @@ func renderInlineChildrenWithReport(n ast.Node, source []byte, rep *CommentBodyR
 	return b.String()
 }
 
+// renderBlockChildrenWithReport performs its package-specific operation.
 func renderBlockChildrenWithReport(n ast.Node, source []byte, rep *CommentBodyReport) string {
 	var b strings.Builder
 	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
@@ -268,6 +273,7 @@ func escapeText(s string) string {
 	return buf.String()
 }
 
+// isBlockNode performs its package-specific operation.
 func isBlockNode(n ast.Node) bool {
 	switch n.(type) {
 	case *ast.Paragraph, *ast.Blockquote:

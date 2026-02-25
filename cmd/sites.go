@@ -1,4 +1,4 @@
-package cmd
+﻿package cmd
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// init configures package-level command and flag wiring.
 func init() {
 	rootCmd.AddCommand(sitesCmd)
 	sitesCmd.AddCommand(sitesListCmd)

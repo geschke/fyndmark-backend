@@ -1,4 +1,4 @@
-package db
+﻿package db
 
 import (
 	"context"
@@ -179,6 +179,7 @@ VALUES (?, ?, ?, ?, ?);
 	return nil
 }
 
+// GetSiteIDByKey returns data for the requested input.
 func (d *DB) GetSiteIDByKey(ctx context.Context, siteKey string) (int64, bool, error) {
 	if d == nil || d.SQL == nil {
 		return 0, false, fmt.Errorf("db not initialized")
@@ -204,6 +205,7 @@ SELECT id
 	return siteID, true, nil
 }
 
+// GetSiteByID returns data for the requested input.
 func (d *DB) GetSiteByID(ctx context.Context, siteID int64) (Site, bool, error) {
 	if d == nil || d.SQL == nil {
 		return Site{}, false, fmt.Errorf("db not initialized")
@@ -228,11 +230,13 @@ SELECT id, site_key, title, status, created_at, updated_at
 	return s, true, nil
 }
 
+// SiteExists performs its package-specific operation.
 func (d *DB) SiteExists(ctx context.Context, siteKey string) (bool, error) {
 	_, found, err := d.GetSiteIDByKey(ctx, siteKey)
 	return found, err
 }
 
+// SiteExistsByID performs its package-specific operation.
 func (d *DB) SiteExistsByID(ctx context.Context, siteID int64) (bool, error) {
 	if d == nil || d.SQL == nil {
 		return false, fmt.Errorf("db not initialized")
@@ -256,6 +260,7 @@ SELECT 1
 	return true, nil
 }
 
+// ListSites returns a list for the requested filter.
 func (d *DB) ListSites(ctx context.Context) ([]Site, error) {
 	if d == nil || d.SQL == nil {
 		return nil, fmt.Errorf("db not initialized")
@@ -293,6 +298,7 @@ SELECT id, site_key, title, status, created_at, updated_at
 	return out, nil
 }
 
+// ListSitesByUserID returns a list for the requested filter.
 func (d *DB) ListSitesByUserID(ctx context.Context, userID int64) ([]Site, error) {
 	if d == nil || d.SQL == nil {
 		return nil, fmt.Errorf("db not initialized")
@@ -327,6 +333,7 @@ SELECT s.id, s.site_key, s.title, s.status, s.created_at, s.updated_at
 	return out, nil
 }
 
+// ListAllowedSiteIDsByUserID returns a list for the requested filter.
 func (d *DB) ListAllowedSiteIDsByUserID(ctx context.Context, userID int64) ([]int64, error) {
 	if d == nil || d.SQL == nil {
 		return nil, fmt.Errorf("db not initialized")
@@ -360,6 +367,7 @@ SELECT site_id
 	return out, nil
 }
 
+// UserHasSiteAccess performs its package-specific operation.
 func (d *DB) UserHasSiteAccess(ctx context.Context, userID int64, siteID int64) (bool, error) {
 	if d == nil || d.SQL == nil {
 		return false, fmt.Errorf("db not initialized")
@@ -388,6 +396,7 @@ SELECT 1
 	return true, nil
 }
 
+// AssignUserSite performs its package-specific operation.
 func (d *DB) AssignUserSite(ctx context.Context, userID int64, siteID int64) error {
 	if d == nil || d.SQL == nil {
 		return fmt.Errorf("db not initialized")
@@ -410,6 +419,7 @@ ON CONFLICT(user_id, site_id) DO NOTHING;
 	return nil
 }
 
+// RemoveUserSite performs its package-specific operation.
 func (d *DB) RemoveUserSite(ctx context.Context, userID int64, siteID int64) (bool, error) {
 	if d == nil || d.SQL == nil {
 		return false, fmt.Errorf("db not initialized")

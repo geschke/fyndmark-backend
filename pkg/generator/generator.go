@@ -1,4 +1,4 @@
-package generator
+﻿package generator
 
 import (
 	"context"
@@ -149,6 +149,7 @@ func (g *Generator) Generate(ctx context.Context) error {
 	return nil
 }
 
+// resolveLocation performs its package-specific operation.
 func resolveLocation(tz string) (*time.Location, error) {
 	if tz == "" {
 		return time.UTC, nil
@@ -167,6 +168,7 @@ func normalizePostPath(p string) string {
 	return p
 }
 
+// dirExists performs its package-specific operation.
 func dirExists(path string) bool {
 	st, err := os.Stat(path)
 	if err != nil {

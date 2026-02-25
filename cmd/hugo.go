@@ -1,4 +1,4 @@
-package cmd
+﻿package cmd
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// init configures package-level command and flag wiring.
 func init() {
 	hugoRunCmd.Flags().StringVar(&hugoRunSiteId, "site-id", "", "Site ID from config.comment_sites (required)")
 	rootCmd.AddCommand(hugoRunCmd)

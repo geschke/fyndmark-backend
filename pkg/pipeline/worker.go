@@ -1,4 +1,4 @@
-package pipeline
+﻿package pipeline
 
 import (
 	"context"
@@ -31,6 +31,7 @@ type Worker struct {
 	wg      sync.WaitGroup
 }
 
+// NewWorker constructs and returns a new instance.
 func NewWorker(database *db.DB, queueSize int) *Worker {
 	if queueSize <= 0 {
 		queueSize = DefaultQueueSize
@@ -42,6 +43,7 @@ func NewWorker(database *db.DB, queueSize int) *Worker {
 	}
 }
 
+// Start starts processing.
 func (w *Worker) Start() {
 	if w == nil {
 		return
@@ -60,6 +62,7 @@ func (w *Worker) Start() {
 	}()
 }
 
+// Stop stops processing and releases resources.
 func (w *Worker) Stop(ctx context.Context) error {
 	if w == nil {
 		return nil
@@ -82,6 +85,7 @@ func (w *Worker) Stop(ctx context.Context) error {
 	}
 }
 
+// EnqueueRun performs its package-specific operation.
 func (w *Worker) EnqueueRun(runID int64, siteID, commentID string) error {
 	if w == nil {
 		return ErrWorkerStopped
@@ -104,6 +108,7 @@ func (w *Worker) EnqueueRun(runID int64, siteID, commentID string) error {
 	}
 }
 
+// runOne runs the configured operation.
 func (w *Worker) runOne(req RunRequest) {
 	if w == nil || w.db == nil {
 		return

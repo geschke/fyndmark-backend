@@ -1,4 +1,4 @@
-package db
+﻿package db
 
 import (
 	"context"
@@ -45,6 +45,7 @@ const (
 	CommentStatusDeleted  = "deleted"
 )
 
+// isValidCommentStatus performs its package-specific operation.
 func isValidCommentStatus(status string) bool {
 	switch status {
 	case CommentStatusPending, CommentStatusApproved, CommentStatusRejected, CommentStatusSpam, CommentStatusDeleted:
@@ -54,6 +55,7 @@ func isValidCommentStatus(status string) bool {
 	}
 }
 
+// MarshalJSON performs its package-specific operation.
 func (c Comment) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		ID         string `json:"ID"`
@@ -88,6 +90,7 @@ func (c Comment) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// nullStringToString performs its package-specific operation.
 func nullStringToString(ns sql.NullString) string {
 	if ns.Valid {
 		return ns.String
@@ -95,6 +98,7 @@ func nullStringToString(ns sql.NullString) string {
 	return ""
 }
 
+// AuthorURLString performs its package-specific operation.
 func (c Comment) AuthorURLString() string {
 	if c.AuthorUrl.Valid {
 		return c.AuthorUrl.String
@@ -102,6 +106,7 @@ func (c Comment) AuthorURLString() string {
 	return ""
 }
 
+// normalizeNullString performs its package-specific operation.
 func normalizeNullString(ns sql.NullString) sql.NullString {
 	s := strings.TrimSpace(ns.String)
 	if s == "" {
@@ -110,6 +115,7 @@ func normalizeNullString(ns sql.NullString) sql.NullString {
 	return sql.NullString{String: s, Valid: true}
 }
 
+// InsertComment performs its package-specific operation.
 func (d *DB) InsertComment(ctx context.Context, c Comment) error {
 	if d == nil || d.SQL == nil {
 		return fmt.Errorf("db not initialized")
@@ -310,6 +316,7 @@ SELECT 1
 	return true, nil
 }
 
+// normalizeCommentFilter performs its package-specific operation.
 func normalizeCommentFilter(f CommentListFilter) (CommentListFilter, error) {
 	f.Status = strings.ToLower(strings.TrimSpace(f.Status))
 	f.Query = strings.TrimSpace(f.Query)
@@ -341,6 +348,7 @@ func normalizeCommentFilter(f CommentListFilter) (CommentListFilter, error) {
 	return f, nil
 }
 
+// CountComments returns the matching item count.
 func (d *DB) CountComments(ctx context.Context, f CommentListFilter) (int64, error) {
 	if d == nil || d.SQL == nil {
 		return 0, fmt.Errorf("db not initialized")

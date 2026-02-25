@@ -1,4 +1,4 @@
-package controller
+﻿package controller
 
 import (
 	"context"
@@ -48,6 +48,7 @@ type CreateCommentRequest struct {
 	CaptchaToken   string `json:"captcha_token"`
 }
 
+// NewCommentsController constructs and returns a new instance.
 func NewCommentsController(database *db.DB, enqueuer PipelineEnqueuer) *CommentsController {
 	return &CommentsController{DB: database, Enqueuer: enqueuer}
 }
@@ -346,6 +347,7 @@ func (ct CommentsController) OptionsComment(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// signToken performs its package-specific operation.
 func signToken(payload, secret string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(payload))
@@ -356,6 +358,7 @@ func signToken(payload, secret string) string {
 	return p + "." + s
 }
 
+// baseURLFromRequest performs its package-specific operation.
 func baseURLFromRequest(c *gin.Context) string {
 	// Prefer reverse proxy headers if present.
 	proto := c.GetHeader("X-Forwarded-Proto")
@@ -366,6 +369,7 @@ func baseURLFromRequest(c *gin.Context) string {
 	return proto + "://" + host
 }
 
+// resolveClientIP performs its package-specific operation.
 func resolveClientIP(c *gin.Context, trustedProxies []string) string {
 	peerIP := parsePeerIP(c.Request.RemoteAddr)
 
@@ -393,6 +397,7 @@ func resolveClientIP(c *gin.Context, trustedProxies []string) string {
 	return peerIP
 }
 
+// parsePeerIP performs its package-specific operation.
 func parsePeerIP(remoteAddr string) string {
 	remoteAddr = strings.TrimSpace(remoteAddr)
 	if remoteAddr == "" {
@@ -415,6 +420,7 @@ func parsePeerIP(remoteAddr string) string {
 	return ""
 }
 
+// isTrustedProxy performs its package-specific operation.
 func isTrustedProxy(peerIP string, trustedProxies []string) bool {
 	if peerIP == "" || len(trustedProxies) == 0 {
 		return false

@@ -1,4 +1,4 @@
-package users
+﻿package users
 
 import (
 	"context"
@@ -15,6 +15,7 @@ type CreateParams struct {
 	LastName  string
 }
 
+// Create creates a new record.
 func Create(ctx context.Context, database *db.DB, p CreateParams) (int64, error) {
 	if database == nil {
 		return 0, fmt.Errorf("db is nil")
@@ -42,6 +43,7 @@ func Create(ctx context.Context, database *db.DB, p CreateParams) (int64, error)
 	return id, nil
 }
 
+// DeleteByID deletes the requested record.
 func DeleteByID(ctx context.Context, database *db.DB, id int64) (bool, error) {
 	if database == nil {
 		return false, fmt.Errorf("db is nil")
@@ -49,6 +51,7 @@ func DeleteByID(ctx context.Context, database *db.DB, id int64) (bool, error) {
 	return database.DeleteUser(ctx, id)
 }
 
+// DeleteByEmail deletes the requested record.
 func DeleteByEmail(ctx context.Context, database *db.DB, email string) (bool, error) {
 	if database == nil {
 		return false, fmt.Errorf("db is nil")
@@ -68,6 +71,7 @@ func DeleteByEmail(ctx context.Context, database *db.DB, email string) (bool, er
 	return database.DeleteUser(ctx, u.ID)
 }
 
+// List returns a list for the requested filter.
 func List(ctx context.Context, database *db.DB) ([]db.User, error) {
 	if database == nil {
 		return nil, fmt.Errorf("db is nil")
