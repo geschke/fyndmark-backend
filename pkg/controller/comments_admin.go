@@ -89,7 +89,7 @@ func (ct CommentsAdminController) currentSessionUserID(c *gin.Context) (int64, b
 	return id, true
 }
 
-// GET /api/comments/list?site_id=<id>&status=pending|approved|rejected|spam|deleted|all&limit=..&offset=..
+// GET /api/comments/list?site_id=<id>&status=pending|approved|rejected|spam|deleted|all&q=<text>&limit=..&offset=..
 func (ct CommentsAdminController) GetList(c *gin.Context) {
 	if !cors.ApplyCORS(c, config.Cfg.WebAdmin.CORSAllowedOrigins) {
 		return
@@ -107,7 +107,6 @@ func (ct CommentsAdminController) GetList(c *gin.Context) {
 		}
 		siteID = n
 	}
-	fmt.Println("siteid in GetList", siteID)
 	status := strings.ToLower(strings.TrimSpace(c.DefaultQuery("status", "pending")))
 	switch status {
 	case "pending", "approved", "rejected", "spam", "deleted", "all":
@@ -135,6 +134,7 @@ func (ct CommentsAdminController) GetList(c *gin.Context) {
 		}
 		offset = n
 	}
+	searchQuery := strings.TrimSpace(c.Query("q"))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -173,6 +173,7 @@ func (ct CommentsAdminController) GetList(c *gin.Context) {
 		SiteID:         siteID,
 		AllowedSiteIDs: allowedSiteIDs,
 		Status:         status,
+		Query:          searchQuery,
 		Limit:          limit,
 		Offset:         offset,
 	}

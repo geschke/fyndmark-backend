@@ -32,6 +32,7 @@ type CommentListFilter struct {
 	AllowedSiteIDs []int64
 	// pending|approved|rejected|spam|deleted|all
 	Status string
+	Query  string
 	Limit  int
 	Offset int
 }
@@ -311,6 +312,7 @@ SELECT 1
 
 func normalizeCommentFilter(f CommentListFilter) (CommentListFilter, error) {
 	f.Status = strings.ToLower(strings.TrimSpace(f.Status))
+	f.Query = strings.TrimSpace(f.Query)
 	allowed := make([]int64, 0, len(f.AllowedSiteIDs))
 	for _, s := range f.AllowedSiteIDs {
 		if s <= 0 {
@@ -367,6 +369,16 @@ SELECT COUNT(1)
 	if f.Status != "all" {
 		query += "   AND status = ?\n"
 		args = append(args, f.Status)
+	}
+	if f.Query != "" {
+		query += `   AND (
+    LOWER(author) LIKE LOWER(?)
+ OR LOWER(email)  LIKE LOWER(?)
+ OR LOWER(body)   LIKE LOWER(?)
+)
+`
+		pattern := "%" + f.Query + "%"
+		args = append(args, pattern, pattern, pattern)
 	}
 
 	var count int64
@@ -518,6 +530,16 @@ SELECT id, site_id, entry_id, post_path, parent_id, status, author, email, autho
 	if f.Status != "all" {
 		query.WriteString(" AND status = ?\n")
 		args = append(args, f.Status)
+	}
+	if f.Query != "" {
+		query.WriteString(` AND (
+    LOWER(author) LIKE LOWER(?)
+ OR LOWER(email)  LIKE LOWER(?)
+ OR LOWER(body)   LIKE LOWER(?)
+)
+`)
+		pattern := "%" + f.Query + "%"
+		args = append(args, pattern, pattern, pattern)
 	}
 
 	query.WriteString(" ORDER BY created_at DESC, id DESC\n")
