@@ -53,6 +53,13 @@ func (ct AuthController) OptionsLogout(c *gin.Context) {
 	}
 }
 
+// OptionsMe handles the CORS preflight request.
+func (ct AuthController) OptionsMe(c *gin.Context) {
+	if !cors.ApplyCORS(c, config.Cfg.WebAdmin.CORSAllowedOrigins) {
+		return
+	}
+}
+
 // PostLogin performs its package-specific operation.
 func (ct AuthController) PostLogin(c *gin.Context) {
 	if !cors.ApplyCORS(c, config.Cfg.WebAdmin.CORSAllowedOrigins) {
@@ -178,6 +185,67 @@ func (ct AuthController) PostLogout(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "LOGGED_OUT"})
+}
+
+// GetMe returns the current authenticated user for a valid session.
+func (ct AuthController) GetMe(c *gin.Context) {
+	if !cors.ApplyCORS(c, config.Cfg.WebAdmin.CORSAllowedOrigins) {
+		return
+	}
+
+	if ct.DB == nil || ct.DB.SQL == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "DB_NOT_INITIALIZED"})
+		return
+	}
+	if ct.Store == nil || strings.TrimSpace(ct.SessionName) == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "AUTH_NOT_CONFIGURED"})
+		return
+	}
+
+	sess, _ := ct.Store.Get(c.Request, ct.SessionName)
+	if sess == nil || sess.IsNew {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "UNAUTHORIZED"})
+		return
+	}
+
+	rawID, ok := sess.Values["id"]
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "UNAUTHORIZED"})
+		return
+	}
+	userID, ok := rawID.(int64)
+	if !ok || userID <= 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "UNAUTHORIZED"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	u, found, err := ct.DB.GetUserByID(ctx, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "DB_ERROR"})
+		return
+	}
+	if !found {
+		// Session points to a deleted user -> expire cookie.
+		for k := range sess.Values {
+			delete(sess.Values, k)
+		}
+		sess.Options = &sessions.Options{
+			Path:     "/",
+			MaxAge:   -1,
+			HttpOnly: true,
+			Secure:   config.Cfg.WebAdmin.CookieSecure,
+			SameSite: parseSameSite(config.Cfg.WebAdmin.CookieSameSite),
+		}
+		_ = sess.Save(c.Request, c.Writer)
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "UNAUTHORIZED"})
+		return
+	}
+
+	u.Password = ""
+	c.JSON(http.StatusOK, gin.H{"success": true, "item": u})
 }
 
 // parseSameSite performs its package-specific operation.

@@ -45,6 +45,8 @@ func Start(database *db.DB) error {
 		router.OPTIONS("/api/auth/login", auth.OptionsLogin)
 		router.POST("/api/auth/logout", auth.PostLogout)
 		router.OPTIONS("/api/auth/logout", auth.OptionsLogout)
+		router.GET("/api/auth/me", auth.GetMe)
+		router.OPTIONS("/api/auth/me", auth.OptionsMe)
 
 		usersCtl := controller.NewUsersController(database, store, sessionName)
 		router.GET("/api/users/list", usersCtl.GetList)
